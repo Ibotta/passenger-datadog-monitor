@@ -1,0 +1,77 @@
+# Build customization
+builds:
+  - binary: passenger-datadog-monitor
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+
+archives:
+  - id: zips
+    name_template: "{{ .ProjectName }}_{{ .Os }}"
+
+checksum:
+  # You can change the name of the checksums file.
+  # This is parsed with the Go template engine and the following variables
+  # are available:
+  # - ProjectName
+  # - Tag
+  # - Version (Git tag without `v` prefix)
+  # - Env (environment variables)
+  # Default is `{{ .ProjectName }}_{{ .Version }}_checksums.txt`.
+  name_template: "{{ .ProjectName }}_checksums.txt"
+
+nfpm:
+  name_template: "{{ .ProjectName }}_{{ .Os }}"
+
+  # Your app's vendor.
+  # Default is empty.
+  vendor: Ibotta
+
+  # Your app's homepage.
+  # Default is empty.
+  homepage: https://github.com/Ibotta/passenger-datadog-monitor
+
+  # Your app's maintainer (probably you).
+  # Default is empty.
+  maintainer: Ibotta <oss@ibotta.com>
+
+  # Your app's description.
+  # Default is empty.
+  description: "Send health metrics from Phusion Passenger to DataDog"
+
+  # Your app's license.
+  # Default is empty.
+  license: MIT
+
+  # Formats to be generated.
+  formats:
+    - deb
+    - rpm
+
+dockers:
+  - goos: linux
+    # GOARCH of the built binary that should be used.
+    goarch: amd64
+    # GOARM of the built binary that should be used.
+    goarm: ''
+    # Name templates of the built binaries that should be used.
+    binaries:
+    - passenger-datadog-monitor
+    # Templates of the Docker image names.
+    image_templates:
+    - "ibotta/{{ .ProjectName }}:latest"
+    - "ibotta/{{ .ProjectName }}:{{ .Version }}"
+    # Skips the docker push. Could be useful if you also do draft releases.
+    # If set to auto, the release will not be pushed to the docker repository
+    # in case there is an indicator for prerelease in the tag e.g. v1.0.0-rc1
+    # Defaults to false.
+    skip_push: false
+    # Path to the Dockerfile (from the project root).
+    dockerfile: Dockerfile
+    # Template of the docker build flags.
+    build_flag_templates:
+    - "--label=org.label-schema.schema-version=1.0"
+    - "--label=org.label-schema.version={{.Version}}"
+    - "--label=org.label-schema.name={{.ProjectName}}"
