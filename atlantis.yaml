@@ -1,0 +1,12 @@
+version: 3
+projects:
+- name: monolith-production
+  dir: terraform/env/monolith-production
+  terraform_version: 1.9.8
+  autoplan:
+    when_modified:
+    - ../../modules/**/*.tf
+    - '*.tf*'
+    - ../../modules/**/*.yml
+    - '*.json'
+    - '**/*.encrypted'
