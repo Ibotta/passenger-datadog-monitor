@@ -9,7 +9,7 @@ jobs:
   go:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
       - uses: Ibotta/go-action@v1
         with:
           github-token: ${{ secrets.GO_MODULES_PRIVATE_REPO }}
@@ -26,7 +26,7 @@ jobs:
       id-token: write
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
       - name: Build Docker image (no push)
         uses: ibotta/ecr-action@v1
         with:
