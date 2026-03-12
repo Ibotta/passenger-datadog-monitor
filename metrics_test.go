@@ -65,7 +65,7 @@ func (m *mockStatsd) findGauge(name string) (gaugeCall, bool) {
 
 func loadTestXML(t *testing.T, path string) passengerStatus {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		t.Fatalf("failed to read %s: %v", path, err)
 	}
@@ -133,7 +133,7 @@ func TestChartDiscreteMetrics(t *testing.T) {
 
 	// Replace execCommand so getProcessThreadCount returns "4" for any pid.
 	oldCmd := execCommand
-	execCommand = func(name string, args ...string) *exec.Cmd {
+	execCommand = func(_ string, _ ...string) *exec.Cmd {
 		return exec.Command("echo", "4")
 	}
 	defer func() { execCommand = oldCmd }()

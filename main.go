@@ -1,3 +1,4 @@
+// Package main is the entry point for passenger-datadog-monitor.
 package main
 
 import (
@@ -32,7 +33,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Error establishing StatsD connection:", err)
 	}
-	defer client.Close()
 
 	if *printOutput {
 		log.Println("Starting loop, sending to", *hostName, *portNum)
@@ -41,11 +41,13 @@ func main() {
 	for {
 		xmlData, err := retrievePassengerStats()
 		if err != nil {
+			client.Close() //nolint:errcheck,gosec
 			log.Fatal("Error getting passenger data:", err)
 		}
 
 		passengerData, err := parsePassengerXML(&xmlData)
 		if err != nil {
+			client.Close() //nolint:errcheck,gosec
 			log.Fatal("Error parsing passenger data:", err)
 		}
 

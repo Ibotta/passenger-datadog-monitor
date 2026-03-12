@@ -48,7 +48,7 @@ type Stats struct {
 func summarizeStats(statsArray *[]int) Stats {
 	var s Stats
 	sum, count := 0, len(*statsArray)
-	sort.Sort(sort.IntSlice(*statsArray))
+	sort.Ints(*statsArray)
 	for _, v := range *statsArray {
 		sum += v
 	}

@@ -9,7 +9,7 @@ import (
 
 func mustReadXML(t *testing.T, path string) io.Reader {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		t.Fatalf("failed to read %s: %v", path, err)
 	}
