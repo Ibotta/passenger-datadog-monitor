@@ -9,6 +9,9 @@ linters:
     - gocritic
     - revive
     - gosec
+
+formatters:
+  enable:
     - gofmt
     - goimports
 
