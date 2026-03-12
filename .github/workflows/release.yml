@@ -1,0 +1,28 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Ibotta/go-action@v1
+        with:
+          github-token: ${{ secrets.GO_MODULES_PRIVATE_REPO }}
+          go-version-file: go.mod
+
+      - name: Build and push to ECR
+        uses: ibotta/ecr-action@v1
+        with:
+          ecr-repo-name: passenger-datadog-monitor
+          tag: ${{ github.ref_name }}
+          tag-latest: true
