@@ -1,8 +1,14 @@
-module github.com/sjeanpierre/passenger-datadog-monitor
+module github.com/Ibotta/passenger-datadog-monitor
+
+go 1.25.0
 
 require (
-	github.com/kr/pretty v0.1.0 // indirect
-	github.com/theckman/godspeed v1.1.0
-	golang.org/x/net v0.0.0-20190501004415-9ce7a6920f09
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
+	github.com/DataDog/datadog-go/v5 v5.8.3
+	golang.org/x/net v0.37.0
+)
+
+require (
+	github.com/Microsoft/go-winio v0.5.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 )
