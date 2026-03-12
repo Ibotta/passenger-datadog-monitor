@@ -47,7 +47,7 @@ func processPerThreadRequests(passengerDetails *passengerStatus) map[int]float64
 	return result
 }
 
-func chartPendingRequest(passengerDetails *passengerStatus, client statsd.ClientInterface, printOutput bool) {
+func chartPendingRequest(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	var totalQueued int
 	for _, queued := range passengerDetails.QueuedCount {
 		totalQueued += queued
@@ -55,61 +55,67 @@ func chartPendingRequest(passengerDetails *passengerStatus, client statsd.Client
 	if printOutput {
 		fmt.Printf("\n|=====Queue Depth====|\n Queue Depth %d", totalQueued)
 	}
-	_ = client.Gauge("passenger.queue.depth", float64(totalQueued), nil, 1)
+	_ = client.Gauge("passenger.queue.depth", float64(totalQueued), tags, 1)
 }
 
-func chartPoolUse(passengerDetails *passengerStatus, client statsd.ClientInterface, printOutput bool) {
+func chartPoolUse(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	if printOutput {
 		fmt.Printf("\n|=====Pool Usage====|\n Used Pool %d\n Max Pool %d", passengerDetails.ProcessCount, passengerDetails.PoolMax)
 	}
-	_ = client.Gauge("passenger.pool.used", float64(passengerDetails.ProcessCount), nil, 1)
-	_ = client.Gauge("passenger.pool.max", float64(passengerDetails.PoolMax), nil, 1)
+	_ = client.Gauge("passenger.pool.used", float64(passengerDetails.ProcessCount), tags, 1)
+	_ = client.Gauge("passenger.pool.max", float64(passengerDetails.PoolMax), tags, 1)
 }
 
-func chartProcessed(passengerDetails *passengerStatus, client statsd.ClientInterface, printOutput bool) {
+func chartProcessed(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	stats := processed(passengerDetails)
 	if printOutput {
 		fmt.Printf("\n|=====Processed====|\n Total processed %d\n Average processed %d\n"+
 			" Minimum processed %d\n Maximum processed %d", stats.sum, stats.avg, stats.min, stats.max)
 	}
-	_ = client.Gauge("passenger.processed.total", float64(stats.sum), nil, 1)
-	_ = client.Gauge("passenger.processed.avg", float64(stats.avg), nil, 1)
-	_ = client.Gauge("passenger.processed.min", float64(stats.min), nil, 1)
-	_ = client.Gauge("passenger.processed.max", float64(stats.max), nil, 1)
+	_ = client.Gauge("passenger.processed.total", float64(stats.sum), tags, 1)
+	_ = client.Gauge("passenger.processed.avg", float64(stats.avg), tags, 1)
+	_ = client.Gauge("passenger.processed.min", float64(stats.min), tags, 1)
+	_ = client.Gauge("passenger.processed.max", float64(stats.max), tags, 1)
 }
 
-func chartMemory(passengerDetails *passengerStatus, client statsd.ClientInterface, printOutput bool) {
+func chartMemory(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	stats := memory(passengerDetails)
 	if printOutput {
 		fmt.Printf("\n|=====Memory====|\n Total memory %d\n Average memory %d\n"+
 			" Minimum memory %d\n Maximum memory %d", stats.sum/1024, stats.avg/1024, stats.min/1024, stats.max/1024)
 	}
-	_ = client.Gauge("passenger.memory.total", float64(stats.sum/1024), nil, 1)
-	_ = client.Gauge("passenger.memory.avg", float64(stats.avg/1024), nil, 1)
-	_ = client.Gauge("passenger.memory.min", float64(stats.min/1024), nil, 1)
-	_ = client.Gauge("passenger.memory.max", float64(stats.max/1024), nil, 1)
+	_ = client.Gauge("passenger.memory.total", float64(stats.sum/1024), tags, 1)
+	_ = client.Gauge("passenger.memory.avg", float64(stats.avg/1024), tags, 1)
+	_ = client.Gauge("passenger.memory.min", float64(stats.min/1024), tags, 1)
+	_ = client.Gauge("passenger.memory.max", float64(stats.max/1024), tags, 1)
 }
 
-func chartProcessUptime(passengerDetails *passengerStatus, client statsd.ClientInterface, printOutput bool) {
+func chartProcessUptime(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	stats := processUptime(passengerDetails)
 	if printOutput {
 		fmt.Printf("\n|=====Process uptime====|\n Average uptime %d min\n"+
 			" Minimum uptime %d min\n Maximum uptime %d min\n", stats.avg, stats.min, stats.max)
 	}
-	_ = client.Gauge("passenger.uptime.avg", float64(stats.avg), nil, 1)
-	_ = client.Gauge("passenger.uptime.min", float64(stats.min), nil, 1)
-	_ = client.Gauge("passenger.uptime.max", float64(stats.max), nil, 1)
+	_ = client.Gauge("passenger.uptime.avg", float64(stats.avg), tags, 1)
+	_ = client.Gauge("passenger.uptime.min", float64(stats.min), tags, 1)
+	_ = client.Gauge("passenger.uptime.max", float64(stats.max), tags, 1)
 }
 
-func chartProcessUse(passengerDetails *passengerStatus, client statsd.ClientInterface, printOutput bool) {
+func chartProcessUse(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	totalUsed := processUse(passengerDetails)
 	if printOutput {
 		fmt.Printf("\n|=====Process Usage====|\nUsed Processes %d", totalUsed)
 	}
-	_ = client.Gauge("passenger.processes.used", float64(totalUsed), nil, 1)
+	_ = client.Gauge("passenger.processes.used", float64(totalUsed), tags, 1)
 }
 
-func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.ClientInterface, printOutput bool) {
+func pidTags(baseTags []string, pid int) []string {
+	t := make([]string, len(baseTags), len(baseTags)+1)
+	copy(t, baseTags)
+	return append(t, fmt.Sprintf("pid:%d", pid))
+}
+
+func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	threadCounts := processSystemThreadUsage(passengerDetails)
 	memoryUsages := processPerThreadMemoryUsage(passengerDetails)
 	idleTimes := processPerThreadIdleTime(passengerDetails)
@@ -122,7 +128,7 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 		if printOutput {
 			fmt.Printf("PID: %d  Running: %0.2f threads\n", pid, count)
 		}
-		_ = client.Gauge("passenger.process.threads", count, []string{fmt.Sprintf("pid:%d", pid)}, 1)
+		_ = client.Gauge("passenger.process.threads", count, pidTags(tags, pid), 1)
 	}
 
 	if printOutput {
@@ -132,7 +138,7 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 		if printOutput {
 			fmt.Printf("PID: %d Memory_Used: %0.2f MB\n", pid, memUse)
 		}
-		_ = client.Gauge("passenger.process.memory", memUse, []string{fmt.Sprintf("pid:%d", pid)}, 1)
+		_ = client.Gauge("passenger.process.memory", memUse, pidTags(tags, pid), 1)
 	}
 
 	if printOutput {
@@ -142,7 +148,7 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 		if printOutput {
 			fmt.Printf("PID: %d Idle: %d Seconds\n", pid, int(seconds))
 		}
-		_ = client.Gauge("passenger.process.last_used", seconds, []string{fmt.Sprintf("pid:%d", pid)}, 1)
+		_ = client.Gauge("passenger.process.last_used", seconds, pidTags(tags, pid), 1)
 	}
 
 	if printOutput {
@@ -152,6 +158,6 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 		if printOutput {
 			fmt.Printf("PID: %d Processed: %d Requests\n", pid, int(count))
 		}
-		_ = client.Gauge("passenger.process.request_processed", count, []string{fmt.Sprintf("pid:%d", pid)}, 1)
+		_ = client.Gauge("passenger.process.request_processed", count, pidTags(tags, pid), 1)
 	}
 }

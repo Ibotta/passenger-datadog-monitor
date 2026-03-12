@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -22,11 +23,17 @@ func main() {
 	hostName := flag.String("host", DefaultHost, "DogStatsD Host")
 	portNum := flag.Int("port", DefaultPort, "DogStatsD UDP Port")
 	printOutput := flag.Bool("print", false, "Print Outputs")
+	tagsFlag := flag.String("tags", "", "Comma-separated tags to add to all metrics (e.g. source:monolith-api-primary,service:monolith)")
 	flag.Parse()
 
 	// backwards compatibility: positional "print" argument
 	if flag.NArg() > 0 && flag.Arg(0) == "print" {
 		*printOutput = true
+	}
+
+	var baseTags []string
+	if *tagsFlag != "" {
+		baseTags = strings.Split(*tagsFlag, ",")
 	}
 
 	client, err := statsd.New(fmt.Sprintf("%s:%d", *hostName, *portNum))
@@ -54,13 +61,13 @@ func main() {
 		if passengerData.ProcessCount == 0 {
 			log.Println("Passenger has not yet started any threads, will try again next loop")
 		} else {
-			chartProcessed(&passengerData, client, *printOutput)
-			chartMemory(&passengerData, client, *printOutput)
-			chartPendingRequest(&passengerData, client, *printOutput)
-			chartPoolUse(&passengerData, client, *printOutput)
-			chartProcessUptime(&passengerData, client, *printOutput)
-			chartProcessUse(&passengerData, client, *printOutput)
-			chartDiscreteMetrics(&passengerData, client, *printOutput)
+			chartProcessed(&passengerData, client, baseTags, *printOutput)
+			chartMemory(&passengerData, client, baseTags, *printOutput)
+			chartPendingRequest(&passengerData, client, baseTags, *printOutput)
+			chartPoolUse(&passengerData, client, baseTags, *printOutput)
+			chartProcessUptime(&passengerData, client, baseTags, *printOutput)
+			chartProcessUse(&passengerData, client, baseTags, *printOutput)
+			chartDiscreteMetrics(&passengerData, client, baseTags, *printOutput)
 		}
 
 		time.Sleep(10 * time.Second)

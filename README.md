@@ -30,6 +30,7 @@ passenger-datadog-monitor -host=$STATSD_HOST -port=$STATSD_PORT
 | `-host` | `127.0.0.1` | StatsD host |
 | `-port` | `8125` | StatsD UDP port |
 | `-print` | `false` | Print metrics to stdout for debugging |
+| `-tags` | (none) | Comma-separated tags for all metrics (e.g. `source:api,service:my-service`) |
 
 ## Development
 
