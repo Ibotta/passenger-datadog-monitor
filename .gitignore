@@ -1,3 +1,7 @@
 .idea*
+.vscode
 *.iml
-bin/passenger-datadog-monitor
+bin/
+*.test
+*.out
+coverage.txt
