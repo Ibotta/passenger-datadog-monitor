@@ -1,0 +1,22 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - gocritic
+    - revive
+    - gosec
+    - gofmt
+    - goimports
+
+  settings:
+    revive:
+      rules:
+        - name: unused-parameter
+          disabled: true
+    gosec:
+      excludes:
+        - G204  # subprocess launched with variable (execCommand pattern is intentional)
