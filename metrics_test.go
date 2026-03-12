@@ -30,28 +30,28 @@ func (m *mockStatsd) Gauge(name string, value float64, tags []string, _ float64)
 func (m *mockStatsd) GaugeWithTimestamp(_ string, _ float64, _ []string, _ float64, _ time.Time) error {
 	return nil
 }
-func (m *mockStatsd) Count(_ string, _ int64, _ []string, _ float64) error      { return nil }
+func (m *mockStatsd) Count(_ string, _ int64, _ []string, _ float64) error { return nil }
 func (m *mockStatsd) CountWithTimestamp(_ string, _ int64, _ []string, _ float64, _ time.Time) error {
 	return nil
 }
 func (m *mockStatsd) Histogram(_ string, _ float64, _ []string, _ float64) error    { return nil }
 func (m *mockStatsd) Distribution(_ string, _ float64, _ []string, _ float64) error { return nil }
-func (m *mockStatsd) Set(_ string, _ string, _ []string, _ float64) error            { return nil }
+func (m *mockStatsd) Set(_ string, _ string, _ []string, _ float64) error           { return nil }
 func (m *mockStatsd) Timing(_ string, _ time.Duration, _ []string, _ float64) error { return nil }
 func (m *mockStatsd) TimeInMilliseconds(_ string, _ float64, _ []string, _ float64) error {
 	return nil
 }
-func (m *mockStatsd) Event(_ *statsd.Event) error                                           { return nil }
-func (m *mockStatsd) SimpleEvent(_, _ string) error                                         { return nil }
-func (m *mockStatsd) ServiceCheck(_ *statsd.ServiceCheck) error                             { return nil }
-func (m *mockStatsd) SimpleServiceCheck(_ string, _ statsd.ServiceCheckStatus) error        { return nil }
-func (m *mockStatsd) Close() error                                                          { return nil }
-func (m *mockStatsd) Flush() error                                                          { return nil }
-func (m *mockStatsd) SetWriteTimeout(_ time.Duration) error                                 { return nil }
-func (m *mockStatsd) Incr(_ string, _ []string, _ float64) error                            { return nil }
-func (m *mockStatsd) Decr(_ string, _ []string, _ float64) error                            { return nil }
-func (m *mockStatsd) GetTelemetry() statsd.Telemetry                                        { return statsd.Telemetry{} }
-func (m *mockStatsd) IsClosed() bool                                                        { return false }
+func (m *mockStatsd) Event(_ *statsd.Event) error                                    { return nil }
+func (m *mockStatsd) SimpleEvent(_, _ string) error                                  { return nil }
+func (m *mockStatsd) ServiceCheck(_ *statsd.ServiceCheck) error                      { return nil }
+func (m *mockStatsd) SimpleServiceCheck(_ string, _ statsd.ServiceCheckStatus) error { return nil }
+func (m *mockStatsd) Close() error                                                   { return nil }
+func (m *mockStatsd) Flush() error                                                   { return nil }
+func (m *mockStatsd) SetWriteTimeout(_ time.Duration) error                          { return nil }
+func (m *mockStatsd) Incr(_ string, _ []string, _ float64) error                     { return nil }
+func (m *mockStatsd) Decr(_ string, _ []string, _ float64) error                     { return nil }
+func (m *mockStatsd) GetTelemetry() statsd.Telemetry                                 { return statsd.Telemetry{} }
+func (m *mockStatsd) IsClosed() bool                                                 { return false }
 
 // findGauge returns true if a gauge with the given name was recorded.
 func (m *mockStatsd) findGauge(name string) (gaugeCall, bool) {
