@@ -23,7 +23,7 @@ func main() {
 	hostName := flag.String("host", DefaultHost, "DogStatsD Host")
 	portNum := flag.Int("port", DefaultPort, "DogStatsD UDP Port")
 	printOutput := flag.Bool("print", false, "Print Outputs")
-	tagsFlag := flag.String("tags", "", "Comma-separated tags to add to all metrics (e.g. source:monolith-api-primary,service:monolith)")
+	tagsFlag := flag.String("tags", "", "Comma-separated tags to add to all metrics (e.g. source:my-service,service:my-service)")
 	flag.Parse()
 
 	// backwards compatibility: positional "print" argument

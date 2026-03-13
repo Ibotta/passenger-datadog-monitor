@@ -93,14 +93,14 @@ func TestChartPoolUse(t *testing.T) {
 func TestChartPoolUseWithTags(t *testing.T) {
 	ps := loadTestXML(t, "sample_data/data.xml")
 	mock := &mockStatsd{}
-	chartPoolUse(&ps, mock, []string{"source:test", "service:monolith"}, false)
+	chartPoolUse(&ps, mock, []string{"source:test", "service:my-service"}, false)
 
 	c, ok := mock.findGauge("passenger.pool.used")
 	if !ok {
 		t.Fatal("passenger.pool.used not recorded")
 	}
-	if len(c.tags) != 2 || c.tags[0] != "source:test" || c.tags[1] != "service:monolith" {
-		t.Errorf("passenger.pool.used tags: got %v, want [source:test service:monolith]", c.tags)
+	if len(c.tags) != 2 || c.tags[0] != "source:test" || c.tags[1] != "service:my-service" {
+		t.Errorf("passenger.pool.used tags: got %v, want [source:test service:my-service]", c.tags)
 	}
 }
 
@@ -203,7 +203,7 @@ func TestChartDiscreteMetricsWithTags(t *testing.T) {
 	defer func() { execCommand = oldCmd }()
 
 	mock := &mockStatsd{}
-	chartDiscreteMetrics(&ps, mock, []string{"source:test", "service:monolith"}, false)
+	chartDiscreteMetrics(&ps, mock, []string{"source:test", "service:my-service"}, false)
 
 	for _, c := range mock.calls {
 		if c.name != "passenger.process.threads" {
@@ -219,7 +219,7 @@ func TestChartDiscreteMetricsWithTags(t *testing.T) {
 			if tag == "source:test" {
 				hasSource = true
 			}
-			if tag == "service:monolith" {
+			if tag == "service:my-service" {
 				hasService = true
 			}
 		}
