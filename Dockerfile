@@ -1,4 +1,4 @@
-FROM 264606497040.dkr.ecr.us-east-1.amazonaws.com/ib-go:1.24-alpine_2 AS builder
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
