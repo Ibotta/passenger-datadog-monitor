@@ -13,7 +13,7 @@ Forked from [Sjeanpierre/passenger-datadog-monitor](https://github.com/Sjeanpier
 ## Usage in Dockerfile
 
 ```dockerfile
-COPY --from=<registry>/passenger-datadog-monitor:v<version> \
+COPY --from=ghcr.io/ibotta/passenger-datadog-monitor:v<version> \
   /usr/local/bin/passenger-datadog-monitor /usr/local/bin/passenger-datadog-monitor
 ```
 
