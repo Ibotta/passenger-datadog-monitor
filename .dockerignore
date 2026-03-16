@@ -1,11 +1,12 @@
 .git
 .gitignore
 .github
-.ibotta
 .vscode
 README.md
 PLAN.md
 CONTRIBUTING.md
 PULL_REQUEST_TEMPLATE.md
-terraform
 *.md
+.claude/
+.goreleaser.yml
+bin/

@@ -5,3 +5,5 @@ bin/
 *.test
 *.out
 coverage.txt
+dist/
+.claude/
