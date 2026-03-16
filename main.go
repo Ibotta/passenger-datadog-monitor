@@ -33,7 +33,9 @@ func main() {
 
 	var baseTags []string
 	if *tagsFlag != "" {
-		baseTags = strings.Split(*tagsFlag, ",")
+		baseTags = strings.FieldsFunc(*tagsFlag, func(r rune) bool {
+			return r == ',' || r == ' '
+		})
 	}
 
 	client, err := statsd.New(fmt.Sprintf("%s:%d", *hostName, *portNum))
