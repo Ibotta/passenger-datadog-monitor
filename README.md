@@ -38,8 +38,7 @@ Space-separated tags (`DD_TAGS`) can be passed directly using supervisord's `%(E
 
 ```ini
 [program:passenger-datadog-monitor]
-command=passenger-datadog-monitor
-    -tags="version:%(ENV_DD_VERSION)s service:%(ENV_DD_SERVICE)s env:%(ENV_DD_ENV)s %(ENV_DD_TAGS)s"
+command=/usr/local/bin/passenger-datadog-monitor -host=%(ENV_STATSD_ENDPOINT_IP)s -port=%(ENV_STATSD_ENDPOINT_PORT)s -tags="version:%(ENV_DD_VERSION)s service:%(ENV_DD_SERVICE)s env:%(ENV_DD_ENV)s %(ENV_DD_TAGS)s"
 ```
 
 ## Development
