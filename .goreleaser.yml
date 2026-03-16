@@ -12,12 +12,14 @@ builds:
       - -s -w
 
 dockers_v2:
-  - image_templates:
-      - ghcr.io/ibotta/passenger-datadog-monitor:{{ .Tag }}
-      - ghcr.io/ibotta/passenger-datadog-monitor:latest
+  - images:
+      - ghcr.io/ibotta/passenger-datadog-monitor
+    tags:
+      - "{{ .Tag }}"
+      - latest
     dockerfile: Dockerfile.goreleaser
-    build_flag_templates:
-      - --platform=linux/amd64
+    platforms:
+      - linux/amd64
 
 archives:
   - formats:
