@@ -30,7 +30,17 @@ passenger-datadog-monitor -host=$STATSD_HOST -port=$STATSD_PORT
 | `-host` | `127.0.0.1` | StatsD host |
 | `-port` | `8125` | StatsD UDP port |
 | `-print` | `false` | Print metrics to stdout for debugging |
-| `-tags` | (none) | Comma-separated tags for all metrics (e.g. `source:api,service:my-service`) |
+| `-tags` | (none) | Tags for all metrics — comma-separated, space-separated, or mixed (e.g. `source:api,service:my-service` or `source:api service:my-service`) |
+
+### supervisord example
+
+Space-separated tags (`DD_TAGS`) can be passed directly using supervisord's `%(ENV_...)s` interpolation:
+
+```ini
+[program:passenger-datadog-monitor]
+command=passenger-datadog-monitor
+    -tags="version:%(ENV_DD_VERSION)s service:%(ENV_DD_SERVICE)s env:%(ENV_DD_ENV)s %(ENV_DD_TAGS)s"
+```
 
 ## Development
 
