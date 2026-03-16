@@ -9,12 +9,6 @@ linters:
     - gocritic
     - revive
     - gosec
-
-formatters:
-  enable:
-    - gofmt
-    - goimports
-
   settings:
     revive:
       rules:
@@ -23,3 +17,8 @@ formatters:
     gosec:
       excludes:
         - G204  # subprocess launched with variable (execCommand pattern is intentional)
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
