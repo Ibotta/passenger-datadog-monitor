@@ -11,7 +11,7 @@ builds:
     ldflags:
       - -s -w
 
-dockers:
+dockers_v2:
   - image_templates:
       - ghcr.io/ibotta/passenger-datadog-monitor:{{ .Tag }}
       - ghcr.io/ibotta/passenger-datadog-monitor:latest
@@ -20,7 +20,8 @@ dockers:
       - --platform=linux/amd64
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
 
 changelog:
   sort: asc
