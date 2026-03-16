@@ -6,9 +6,9 @@ Forked from [Sjeanpierre/passenger-datadog-monitor](https://github.com/Sjeanpier
 
 ## Metrics
 
-**Aggregated** (`passenger.*`): processed requests, memory usage, process uptime (min/max/avg/total), request queue depth, pool usage.
+**Aggregated** (`passenger.*`): request queue depth, pool usage, process uptime (min/avg/max gauges), total memory (gauge), memory distribution (histogram), total processed requests (count delta).
 
-**Per-process** (`passenger.process.*`, tagged by `pid`): memory, thread count, idle time, requests processed.
+**Per-process** (`passenger.process.*`, tagged by `pid`): memory (histogram), thread count (gauge), idle time (gauge), requests processed (count delta).
 
 ## Usage in Dockerfile
 
