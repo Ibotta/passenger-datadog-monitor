@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"reflect"
 	"testing"
 	"time"
 
@@ -61,6 +62,26 @@ func (m *mockStatsd) findGauge(name string) (gaugeCall, bool) {
 		}
 	}
 	return gaugeCall{}, false
+}
+
+func TestParseTags(t *testing.T) {
+	cases := []struct {
+		input string
+		want  []string
+	}{
+		{"", nil},
+		{"source:foo,env:bar", []string{"source:foo", "env:bar"}},
+		{"source:foo env:bar", []string{"source:foo", "env:bar"}},
+		{"source:foo, env:bar", []string{"source:foo", "env:bar"}},
+		{"version:1.2.3 service:my-service env:production source:my-service", []string{"version:1.2.3", "service:my-service", "env:production", "source:my-service"}},
+		{"single", []string{"single"}},
+	}
+	for _, tc := range cases {
+		got := parseTags(tc.input)
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("parseTags(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
 }
 
 func loadTestXML(t *testing.T, path string) passengerStatus {

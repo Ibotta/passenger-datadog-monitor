@@ -19,6 +19,18 @@ const (
 	DefaultPort = 8125
 )
 
+// parseTags splits a tag string on commas and/or spaces, supporting both
+// comma-separated (source:foo,env:bar) and space-separated (source:foo env:bar)
+// formats, including mixed (source:foo, env:bar).
+func parseTags(s string) []string {
+	if s == "" {
+		return nil
+	}
+	return strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == ' '
+	})
+}
+
 func main() {
 	hostName := flag.String("host", DefaultHost, "DogStatsD Host")
 	portNum := flag.Int("port", DefaultPort, "DogStatsD UDP Port")
@@ -31,12 +43,7 @@ func main() {
 		*printOutput = true
 	}
 
-	var baseTags []string
-	if *tagsFlag != "" {
-		baseTags = strings.FieldsFunc(*tagsFlag, func(r rune) bool {
-			return r == ',' || r == ' '
-		})
-	}
+	baseTags := parseTags(*tagsFlag)
 
 	client, err := statsd.New(fmt.Sprintf("%s:%d", *hostName, *portNum))
 	if err != nil {
