@@ -7,3 +7,4 @@ bin/
 coverage.txt
 dist/
 .claude/
+passenger-datadog-monitor
