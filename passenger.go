@@ -91,22 +91,6 @@ func getProcessThreadCount(pid int) (int, error) {
 	return count, nil
 }
 
-func processed(passengerDetails *passengerStatus) Stats {
-	var vals []int
-	for _, p := range passengerDetails.Processes {
-		vals = append(vals, p.Processed)
-	}
-	return summarizeStats(&vals)
-}
-
-func memory(passengerDetails *passengerStatus) Stats {
-	var vals []int
-	for _, p := range passengerDetails.Processes {
-		vals = append(vals, p.Memory)
-	}
-	return summarizeStats(&vals)
-}
-
 // processUptime calculates uptime stats for all processes.
 // Passenger timestamps are in microseconds; multiply by 1000 to convert to nanoseconds.
 func processUptime(passengerDetails *passengerStatus) Stats {

@@ -19,9 +19,25 @@ type gaugeCall struct {
 	tags  []string
 }
 
+// countCall records a single Count invocation.
+type countCall struct {
+	name  string
+	value int64
+	tags  []string
+}
+
+// histogramCall records a single Histogram invocation.
+type histogramCall struct {
+	name  string
+	value float64
+	tags  []string
+}
+
 // mockStatsd implements statsd.ClientInterface for testing.
 type mockStatsd struct {
-	calls []gaugeCall
+	calls          []gaugeCall
+	countCalls     []countCall
+	histogramCalls []histogramCall
 }
 
 func (m *mockStatsd) Gauge(name string, value float64, tags []string, _ float64) error {
@@ -31,11 +47,17 @@ func (m *mockStatsd) Gauge(name string, value float64, tags []string, _ float64)
 func (m *mockStatsd) GaugeWithTimestamp(_ string, _ float64, _ []string, _ float64, _ time.Time) error {
 	return nil
 }
-func (m *mockStatsd) Count(_ string, _ int64, _ []string, _ float64) error { return nil }
+func (m *mockStatsd) Count(name string, value int64, tags []string, _ float64) error {
+	m.countCalls = append(m.countCalls, countCall{name, value, tags})
+	return nil
+}
 func (m *mockStatsd) CountWithTimestamp(_ string, _ int64, _ []string, _ float64, _ time.Time) error {
 	return nil
 }
-func (m *mockStatsd) Histogram(_ string, _ float64, _ []string, _ float64) error    { return nil }
+func (m *mockStatsd) Histogram(name string, value float64, tags []string, _ float64) error {
+	m.histogramCalls = append(m.histogramCalls, histogramCall{name, value, tags})
+	return nil
+}
 func (m *mockStatsd) Distribution(_ string, _ float64, _ []string, _ float64) error { return nil }
 func (m *mockStatsd) Set(_ string, _ string, _ []string, _ float64) error           { return nil }
 func (m *mockStatsd) Timing(_ string, _ time.Duration, _ []string, _ float64) error { return nil }
@@ -62,6 +84,27 @@ func (m *mockStatsd) findGauge(name string) (gaugeCall, bool) {
 		}
 	}
 	return gaugeCall{}, false
+}
+
+// findCount returns the first count call with the given name.
+func (m *mockStatsd) findCount(name string) (countCall, bool) {
+	for _, c := range m.countCalls {
+		if c.name == name {
+			return c, true
+		}
+	}
+	return countCall{}, false
+}
+
+// countHistograms returns the number of histogram calls with the given name.
+func (m *mockStatsd) countHistograms(name string) int {
+	n := 0
+	for _, h := range m.histogramCalls {
+		if h.name == name {
+			n++
+		}
+	}
+	return n
 }
 
 func TestParseTags(t *testing.T) {
@@ -128,9 +171,10 @@ func TestChartPoolUseWithTags(t *testing.T) {
 func TestTagsNil(t *testing.T) {
 	ps := loadTestXML(t, "sample_data/data.xml")
 	mock := &mockStatsd{}
+	tracker := newDeltaTracker()
 	// nil tags must not panic
 	chartPoolUse(&ps, mock, nil, false)
-	chartProcessed(&ps, mock, nil, false)
+	chartProcessed(&ps, mock, nil, false, tracker)
 	chartMemory(&ps, mock, nil, false)
 	chartPendingRequest(&ps, mock, nil, false)
 	chartProcessUptime(&ps, mock, nil, false)
@@ -139,18 +183,25 @@ func TestTagsNil(t *testing.T) {
 
 func TestChartProcessed(t *testing.T) {
 	ps := loadTestXML(t, "sample_data/data.xml")
-	mock := &mockStatsd{}
-	chartProcessed(&ps, mock, nil, false)
+	tracker := newDeltaTracker()
 
-	// data.xml: processed values [4090, 20, 2] → sum=4112, min=2, max=4090, avg=1370
-	if c, ok := mock.findGauge("passenger.processed.total"); !ok || c.value != 4112 {
-		t.Errorf("passenger.processed.total: got %v, want 4112", c.value)
+	// First scrape: histograms sent per process, no count (no previous value yet).
+	mock1 := &mockStatsd{}
+	chartProcessed(&ps, mock1, nil, false, tracker)
+
+	if n := mock1.countHistograms("passenger.processed"); n != 3 {
+		t.Errorf("expected 3 histogram calls for passenger.processed, got %d", n)
 	}
-	if c, ok := mock.findGauge("passenger.processed.min"); !ok || c.value != 2 {
-		t.Errorf("passenger.processed.min: got %v, want 2", c.value)
+	if len(mock1.countCalls) != 0 {
+		t.Errorf("expected 0 count calls on first scrape, got %d", len(mock1.countCalls))
 	}
-	if c, ok := mock.findGauge("passenger.processed.max"); !ok || c.value != 4090 {
-		t.Errorf("passenger.processed.max: got %v, want 4090", c.value)
+
+	// Second scrape with same data: count delta = 0.
+	mock2 := &mockStatsd{}
+	chartProcessed(&ps, mock2, nil, false, tracker)
+
+	if c, ok := mock2.findCount("passenger.processed.total"); !ok || c.value != 0 {
+		t.Errorf("passenger.processed.total count delta: got %v, want 0", c.value)
 	}
 }
 
@@ -162,6 +213,18 @@ func TestChartMemory(t *testing.T) {
 	// data.xml: real_memory [326500, 372428, 416272] → sum=1115200 KB → /1024=1089 MB
 	if c, ok := mock.findGauge("passenger.memory.total"); !ok || c.value != float64(1115200/1024) {
 		t.Errorf("passenger.memory.total: got %v, want %v", c.value, float64(1115200/1024))
+	}
+
+	// Expect one histogram call per process (3 processes).
+	if n := mock.countHistograms("passenger.memory"); n != 3 {
+		t.Errorf("expected 3 histogram calls for passenger.memory, got %d", n)
+	}
+
+	// avg/min/max gauges must not be sent.
+	for _, name := range []string{"passenger.memory.avg", "passenger.memory.min", "passenger.memory.max"} {
+		if _, ok := mock.findGauge(name); ok {
+			t.Errorf("%s gauge should not be sent", name)
+		}
 	}
 }
 
@@ -185,8 +248,9 @@ func TestChartDiscreteMetrics(t *testing.T) {
 	}
 	defer func() { execCommand = oldCmd }()
 
+	tracker := newDeltaTracker()
 	mock := &mockStatsd{}
-	chartDiscreteMetrics(&ps, mock, nil, false)
+	chartDiscreteMetrics(&ps, mock, nil, false, tracker)
 
 	// Expect one thread-count gauge per process (3 processes in data.xml).
 	threadGauges := 0
@@ -202,15 +266,35 @@ func TestChartDiscreteMetrics(t *testing.T) {
 		t.Errorf("expected 3 thread gauges, got %d", threadGauges)
 	}
 
-	// Expect memory and idle-time gauges for each process too.
-	memGauges := 0
+	// Expect memory histograms (not gauges) for each process.
+	if n := mock.countHistograms("passenger.process.memory"); n != 3 {
+		t.Errorf("expected 3 histogram calls for passenger.process.memory, got %d", n)
+	}
 	for _, c := range mock.calls {
 		if c.name == "passenger.process.memory" {
-			memGauges++
+			t.Error("passenger.process.memory should be a histogram, not a gauge")
 		}
 	}
-	if memGauges != 3 {
-		t.Errorf("expected 3 memory gauges, got %d", memGauges)
+
+	// On first scrape, no count calls for request_processed.
+	for _, c := range mock.countCalls {
+		if c.name == "passenger.process.request_processed" {
+			t.Error("expected no count calls for passenger.process.request_processed on first scrape")
+		}
+	}
+
+	// Second scrape: one count delta per process.
+	mock2 := &mockStatsd{}
+	chartDiscreteMetrics(&ps, mock2, nil, false, tracker)
+
+	requestCounts := 0
+	for _, c := range mock2.countCalls {
+		if c.name == "passenger.process.request_processed" {
+			requestCounts++
+		}
+	}
+	if requestCounts != 3 {
+		t.Errorf("expected 3 count calls for passenger.process.request_processed on second scrape, got %d", requestCounts)
 	}
 }
 
@@ -223,8 +307,9 @@ func TestChartDiscreteMetricsWithTags(t *testing.T) {
 	}
 	defer func() { execCommand = oldCmd }()
 
+	tracker := newDeltaTracker()
 	mock := &mockStatsd{}
-	chartDiscreteMetrics(&ps, mock, []string{"source:test", "service:my-service"}, false)
+	chartDiscreteMetrics(&ps, mock, []string{"source:test", "service:my-service"}, false, tracker)
 
 	for _, c := range mock.calls {
 		if c.name != "passenger.process.threads" {
@@ -247,5 +332,47 @@ func TestChartDiscreteMetricsWithTags(t *testing.T) {
 		if !hasPid || !hasSource || !hasService {
 			t.Errorf("passenger.process.threads tags missing expected values: got %v", c.tags)
 		}
+	}
+}
+
+func TestDeltaTracker(t *testing.T) {
+	tracker := newDeltaTracker()
+	mock := &mockStatsd{}
+
+	// First call: no count sent (no previous value).
+	tracker.CountDelta(mock, "test.metric", 100, nil, 1)
+	if len(mock.countCalls) != 0 {
+		t.Errorf("expected no count on first call, got %d", len(mock.countCalls))
+	}
+
+	// Second call: delta = 150 - 100 = 50.
+	tracker.CountDelta(mock, "test.metric", 150, nil, 1)
+	if len(mock.countCalls) != 1 {
+		t.Fatalf("expected 1 count call, got %d", len(mock.countCalls))
+	}
+	if mock.countCalls[0].value != 50 {
+		t.Errorf("expected delta 50, got %d", mock.countCalls[0].value)
+	}
+
+	// Process restart: current < prev → send current as delta.
+	tracker.CountDelta(mock, "test.metric", 10, nil, 1)
+	if len(mock.countCalls) != 2 {
+		t.Fatalf("expected 2 count calls, got %d", len(mock.countCalls))
+	}
+	if mock.countCalls[1].value != 10 {
+		t.Errorf("expected delta 10 on restart, got %d", mock.countCalls[1].value)
+	}
+
+	// Different tags → separate tracking key; first call for that key, no count.
+	tracker.CountDelta(mock, "test.metric", 200, []string{"pid:123"}, 1)
+	if len(mock.countCalls) != 2 {
+		t.Errorf("expected no new count for new tag key on first call, got %d", len(mock.countCalls))
+	}
+	tracker.CountDelta(mock, "test.metric", 250, []string{"pid:123"}, 1)
+	if len(mock.countCalls) != 3 {
+		t.Fatalf("expected 3 count calls, got %d", len(mock.countCalls))
+	}
+	if mock.countCalls[2].value != 50 {
+		t.Errorf("expected delta 50 for pid:123, got %d", mock.countCalls[2].value)
 	}
 }

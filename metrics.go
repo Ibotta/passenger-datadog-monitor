@@ -3,10 +3,41 @@ package main
 import (
 	"fmt"
 	"log"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+// deltaTracker tracks previous values for monotonically increasing counters
+// to send deltas instead of absolute values.
+type deltaTracker struct {
+	prev map[string]int64
+}
+
+func newDeltaTracker() *deltaTracker {
+	return &deltaTracker{prev: make(map[string]int64)}
+}
+
+// CountDelta sends a Count metric with the delta since the last call.
+// On the first call for a given metric+tags key, no count is sent (to avoid
+// a spike from the initial absolute value). If the delta is negative
+// (e.g. process restart), the current value is sent as the delta.
+func (d *deltaTracker) CountDelta(client statsd.ClientInterface, name string, current int64, tags []string, rate float64) {
+	sorted := make([]string, len(tags))
+	copy(sorted, tags)
+	sort.Strings(sorted)
+	key := name + ":" + strings.Join(sorted, ",")
+	if prev, ok := d.prev[key]; ok {
+		delta := current - prev
+		if delta < 0 {
+			delta = current
+		}
+		_ = client.Count(name, delta, tags, rate)
+	}
+	d.prev[key] = current
+}
 
 func processSystemThreadUsage(passengerDetails *passengerStatus) map[int]float64 {
 	processThreads := make(map[int]float64)
@@ -39,14 +70,6 @@ func processPerThreadIdleTime(passengerDetails *passengerStatus) map[int]float64
 	return result
 }
 
-func processPerThreadRequests(passengerDetails *passengerStatus) map[int]float64 {
-	result := make(map[int]float64)
-	for _, p := range passengerDetails.Processes {
-		result[p.PID] = float64(p.Processed)
-	}
-	return result
-}
-
 func chartPendingRequest(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	var totalQueued int
 	for _, queued := range passengerDetails.QueuedCount {
@@ -66,28 +89,29 @@ func chartPoolUse(passengerDetails *passengerStatus, client statsd.ClientInterfa
 	_ = client.Gauge("passenger.pool.max", float64(passengerDetails.PoolMax), tags, 1)
 }
 
-func chartProcessed(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
-	stats := processed(passengerDetails)
-	if printOutput {
-		fmt.Printf("\n|=====Processed====|\n Total processed %d\n Average processed %d\n"+
-			" Minimum processed %d\n Maximum processed %d", stats.sum, stats.avg, stats.min, stats.max)
+func chartProcessed(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool, tracker *deltaTracker) {
+	var totalProcessed int64
+	for _, p := range passengerDetails.Processes {
+		totalProcessed += int64(p.Processed)
+		_ = client.Histogram("passenger.processed", float64(p.Processed), pidTags(tags, p.PID), 1)
 	}
-	_ = client.Gauge("passenger.processed.total", float64(stats.sum), tags, 1)
-	_ = client.Gauge("passenger.processed.avg", float64(stats.avg), tags, 1)
-	_ = client.Gauge("passenger.processed.min", float64(stats.min), tags, 1)
-	_ = client.Gauge("passenger.processed.max", float64(stats.max), tags, 1)
+	if printOutput {
+		fmt.Printf("\n|=====Processed====|\n Total processed %d", totalProcessed)
+	}
+	tracker.CountDelta(client, "passenger.processed.total", totalProcessed, tags, 1)
 }
 
 func chartMemory(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
-	stats := memory(passengerDetails)
-	if printOutput {
-		fmt.Printf("\n|=====Memory====|\n Total memory %d\n Average memory %d\n"+
-			" Minimum memory %d\n Maximum memory %d", stats.sum/1024, stats.avg/1024, stats.min/1024, stats.max/1024)
+	var totalMemoryKB int64
+	for _, p := range passengerDetails.Processes {
+		totalMemoryKB += int64(p.Memory)
+		_ = client.Histogram("passenger.memory", float64(p.Memory)/1024, pidTags(tags, p.PID), 1)
 	}
-	_ = client.Gauge("passenger.memory.total", float64(stats.sum/1024), tags, 1)
-	_ = client.Gauge("passenger.memory.avg", float64(stats.avg/1024), tags, 1)
-	_ = client.Gauge("passenger.memory.min", float64(stats.min/1024), tags, 1)
-	_ = client.Gauge("passenger.memory.max", float64(stats.max/1024), tags, 1)
+	totalMB := float64(totalMemoryKB / 1024)
+	if printOutput {
+		fmt.Printf("\n|=====Memory====|\n Total memory %d MB", int(totalMB))
+	}
+	_ = client.Gauge("passenger.memory.total", totalMB, tags, 1)
 }
 
 func chartProcessUptime(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
@@ -115,11 +139,10 @@ func pidTags(baseTags []string, pid int) []string {
 	return append(t, fmt.Sprintf("pid:%d", pid))
 }
 
-func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
+func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool, tracker *deltaTracker) {
 	threadCounts := processSystemThreadUsage(passengerDetails)
 	memoryUsages := processPerThreadMemoryUsage(passengerDetails)
 	idleTimes := processPerThreadIdleTime(passengerDetails)
-	requestCounts := processPerThreadRequests(passengerDetails)
 
 	if printOutput {
 		fmt.Println("\n|====Process Thread Counts====|")
@@ -138,7 +161,7 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 		if printOutput {
 			fmt.Printf("PID: %d Memory_Used: %0.2f MB\n", pid, memUse)
 		}
-		_ = client.Gauge("passenger.process.memory", memUse, pidTags(tags, pid), 1)
+		_ = client.Histogram("passenger.process.memory", memUse, pidTags(tags, pid), 1)
 	}
 
 	if printOutput {
@@ -154,10 +177,10 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 	if printOutput {
 		fmt.Println("|====Process Requests Handled====|")
 	}
-	for pid, count := range requestCounts {
+	for _, p := range passengerDetails.Processes {
 		if printOutput {
-			fmt.Printf("PID: %d Processed: %d Requests\n", pid, int(count))
+			fmt.Printf("PID: %d Processed: %d Requests\n", p.PID, p.Processed)
 		}
-		_ = client.Gauge("passenger.process.request_processed", count, pidTags(tags, pid), 1)
+		tracker.CountDelta(client, "passenger.process.request_processed", int64(p.Processed), pidTags(tags, p.PID), 1)
 	}
 }

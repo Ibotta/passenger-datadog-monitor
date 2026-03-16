@@ -54,6 +54,8 @@ func main() {
 		log.Println("Starting loop, sending to", *hostName, *portNum)
 	}
 
+	tracker := newDeltaTracker()
+
 	for {
 		xmlData, err := retrievePassengerStats()
 		if err != nil {
@@ -70,13 +72,13 @@ func main() {
 		if passengerData.ProcessCount == 0 {
 			log.Println("Passenger has not yet started any threads, will try again next loop")
 		} else {
-			chartProcessed(&passengerData, client, baseTags, *printOutput)
+			chartProcessed(&passengerData, client, baseTags, *printOutput, tracker)
 			chartMemory(&passengerData, client, baseTags, *printOutput)
 			chartPendingRequest(&passengerData, client, baseTags, *printOutput)
 			chartPoolUse(&passengerData, client, baseTags, *printOutput)
 			chartProcessUptime(&passengerData, client, baseTags, *printOutput)
 			chartProcessUse(&passengerData, client, baseTags, *printOutput)
-			chartDiscreteMetrics(&passengerData, client, baseTags, *printOutput)
+			chartDiscreteMetrics(&passengerData, client, baseTags, *printOutput, tracker)
 		}
 
 		time.Sleep(10 * time.Second)
