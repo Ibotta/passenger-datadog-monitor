@@ -1,0 +1,3 @@
+FROM scratch
+COPY passenger-datadog-monitor /usr/local/bin/passenger-datadog-monitor
+ENTRYPOINT ["/usr/local/bin/passenger-datadog-monitor"]

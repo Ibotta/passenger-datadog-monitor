@@ -15,7 +15,7 @@ dockers:
   - image_templates:
       - ghcr.io/ibotta/passenger-datadog-monitor:{{ .Tag }}
       - ghcr.io/ibotta/passenger-datadog-monitor:latest
-    dockerfile: Dockerfile
+    dockerfile: Dockerfile.goreleaser
     build_flag_templates:
       - --platform=linux/amd64
 
