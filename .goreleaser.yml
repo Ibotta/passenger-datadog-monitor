@@ -11,15 +11,16 @@ builds:
     ldflags:
       - -s -w
 
-dockers_v2:
-  - images:
-      - ghcr.io/ibotta/passenger-datadog-monitor
-    tags:
-      - "{{ .Tag }}"
-      - latest
+dockers:
+  - image_templates:
+      - ghcr.io/ibotta/passenger-datadog-monitor:{{ .Tag }}
+      - ghcr.io/ibotta/passenger-datadog-monitor:latest
+    goos: linux
+    goarch: amd64
     dockerfile: Dockerfile.goreleaser
-    platforms:
-      - linux/amd64
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
 
 archives:
   - formats:
