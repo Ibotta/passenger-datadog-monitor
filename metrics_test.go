@@ -142,20 +142,20 @@ func loadTestXML(t *testing.T, path string) passengerStatus {
 }
 
 func TestChartPoolUse(t *testing.T) {
-	ps := loadTestXML(t, "sample_data/data.xml")
+	ps := loadTestXML(t, "sample_data/example.xml")
 	mock := &mockStatsd{}
 	chartPoolUse(&ps, mock, nil, false)
 
 	if c, ok := mock.findGauge("passenger.pool.used"); !ok || c.value != 3 {
 		t.Errorf("passenger.pool.used: got %v, want 3", c.value)
 	}
-	if c, ok := mock.findGauge("passenger.pool.max"); !ok || c.value != 15 {
-		t.Errorf("passenger.pool.max: got %v, want 15", c.value)
+	if c, ok := mock.findGauge("passenger.pool.max"); !ok || c.value != 3 {
+		t.Errorf("passenger.pool.max: got %v, want 3", c.value)
 	}
 }
 
 func TestChartPoolUseWithTags(t *testing.T) {
-	ps := loadTestXML(t, "sample_data/data.xml")
+	ps := loadTestXML(t, "sample_data/example.xml")
 	mock := &mockStatsd{}
 	chartPoolUse(&ps, mock, []string{"source:test", "service:my-service"}, false)
 
@@ -169,7 +169,7 @@ func TestChartPoolUseWithTags(t *testing.T) {
 }
 
 func TestTagsNil(t *testing.T) {
-	ps := loadTestXML(t, "sample_data/data.xml")
+	ps := loadTestXML(t, "sample_data/example.xml")
 	mock := &mockStatsd{}
 	tracker := newDeltaTracker()
 	// nil tags must not panic
@@ -183,7 +183,7 @@ func TestTagsNil(t *testing.T) {
 }
 
 func TestChartProcessed(t *testing.T) {
-	ps := loadTestXML(t, "sample_data/data.xml")
+	ps := loadTestXML(t, "sample_data/example.xml")
 	tracker := newDeltaTracker()
 
 	// First scrape: histograms sent per process, no count (no previous value yet).
@@ -218,13 +218,13 @@ func TestChartProcessed(t *testing.T) {
 }
 
 func TestChartMemory(t *testing.T) {
-	ps := loadTestXML(t, "sample_data/data.xml")
+	ps := loadTestXML(t, "sample_data/example.xml")
 	mock := &mockStatsd{}
 	chartMemory(&ps, mock, nil, false)
 
-	// data.xml: real_memory [326500, 372428, 416272] → sum=1115200 KB → /1024=1089 MB
-	if c, ok := mock.findGauge("passenger.memory.total"); !ok || c.value != float64(1115200/1024) {
-		t.Errorf("passenger.memory.total: got %v, want %v", c.value, float64(1115200/1024))
+	// example.xml: real_memory [484884, 439052, 429344] → sum=1353280 KB → /1024=1321 MB
+	if c, ok := mock.findGauge("passenger.memory.total"); !ok || c.value != float64(1353280/1024) {
+		t.Errorf("passenger.memory.total: got %v, want %v", c.value, float64(1353280/1024))
 	}
 
 	// Expect one histogram call per process (3 processes).
@@ -263,7 +263,7 @@ func TestChartPendingRequest(t *testing.T) {
 }
 
 func TestChartProcessUptime(t *testing.T) {
-	ps := loadTestXML(t, "sample_data/data.xml")
+	ps := loadTestXML(t, "sample_data/example.xml")
 	mock := &mockStatsd{}
 	chartProcessUptime(&ps, mock, nil, false)
 
@@ -281,7 +281,7 @@ func TestChartProcessUptime(t *testing.T) {
 }
 
 func TestChartDiscreteMetrics(t *testing.T) {
-	ps := loadTestXML(t, "sample_data/data.xml")
+	ps := loadTestXML(t, "sample_data/example.xml")
 
 	// Replace execCommand so getProcessThreadCount returns "4" for any pid.
 	oldCmd := execCommand
@@ -318,7 +318,7 @@ func TestChartDiscreteMetrics(t *testing.T) {
 }
 
 func TestChartDiscreteMetricsWithTags(t *testing.T) {
-	ps := loadTestXML(t, "sample_data/data.xml")
+	ps := loadTestXML(t, "sample_data/example.xml")
 
 	oldCmd := execCommand
 	execCommand = func(_ string, _ ...string) *exec.Cmd {

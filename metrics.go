@@ -39,25 +39,25 @@ func (d *deltaTracker) CountDelta(client statsd.ClientInterface, name string, cu
 	d.prev[key] = current
 }
 
-func processSystemThreadUsage(passengerDetails *passengerStatus) map[int]float64 {
-	processThreads := make(map[int]float64)
+func processSystemThreadUsage(passengerDetails *passengerStatus) []float64 {
+	var counts []float64
 	for _, p := range passengerDetails.Processes {
 		tc, err := getProcessThreadCount(p.PID)
 		if err != nil {
 			log.Printf("encountered error getting thread count: %s", err)
 		}
-		processThreads[p.PID] = float64(tc)
+		counts = append(counts, float64(tc))
 	}
-	return processThreads
+	return counts
 }
 
 // processPerThreadIdleTime calculates seconds since last use per process.
 // Passenger timestamps are in microseconds; multiply by 1000 to convert to nanoseconds.
-func processPerThreadIdleTime(passengerDetails *passengerStatus) map[int]float64 {
-	result := make(map[int]float64)
+func processPerThreadIdleTime(passengerDetails *passengerStatus) []float64 {
+	var result []float64
 	for _, p := range passengerDetails.Processes {
 		lastUsedTime := time.Unix(0, p.LastUsed*1000)
-		result[p.PID] = time.Since(lastUsedTime).Seconds()
+		result = append(result, time.Since(lastUsedTime).Seconds())
 	}
 	return result
 }
@@ -114,7 +114,7 @@ func chartProcessUptime(passengerDetails *passengerStatus, client statsd.ClientI
 		spawnedNano := time.Unix(0, p.SpawnTime*1000)
 		uptimeMinutes := time.Since(spawnedNano).Minutes()
 		if printOutput {
-			fmt.Printf(" PID %d uptime %.0f min\n", p.PID, uptimeMinutes)
+			fmt.Printf(" uptime %.0f min\n", uptimeMinutes)
 		}
 		_ = client.Histogram("passenger.uptime", uptimeMinutes, tags, 1)
 	}
@@ -135,9 +135,9 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 	if printOutput {
 		fmt.Println("\n|====Process Thread Counts====|")
 	}
-	for pid, count := range threadCounts {
+	for _, count := range threadCounts {
 		if printOutput {
-			fmt.Printf("PID: %d  Running: %0.2f threads\n", pid, count)
+			fmt.Printf(" Running: %0.2f threads\n", count)
 		}
 		_ = client.Histogram("passenger.process.threads", count, tags, 1)
 	}
@@ -145,9 +145,9 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 	if printOutput {
 		fmt.Println("|====Process Idle Times====|")
 	}
-	for pid, seconds := range idleTimes {
+	for _, seconds := range idleTimes {
 		if printOutput {
-			fmt.Printf("PID: %d Idle: %d Seconds\n", pid, int(seconds))
+			fmt.Printf(" Idle: %d Seconds\n", int(seconds))
 		}
 		_ = client.Histogram("passenger.process.last_used", seconds, tags, 1)
 	}

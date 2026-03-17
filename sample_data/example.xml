@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+<info version="3">
+  <passenger_version>6.1.2</passenger_version>
+  <group_count>1</group_count>
+  <process_count>3</process_count>
+  <max>3</max>
+  <capacity_used>3</capacity_used>
+  <get_wait_list_size>0</get_wait_list_size>
+  <supergroups>
+    <supergroup>
+      <name>/home/acme/application &#40;staging&#41;</name>
+      <state>READY</state>
+      <get_wait_list_size>0</get_wait_list_size>
+      <capacity_used>3</capacity_used>
+      <group default="true">
+        <name>/home/acme/application &#40;staging&#41;</name>
+        <component_name>/home/acme/application &#40;staging&#41;</component_name>
+        <app_root>/home/acme/application</app_root>
+        <app_type>ruby</app_type>
+        <environment>staging</environment>
+        <uuid>xxxxxxxxxxxxxxxxxxxxxxx</uuid>
+        <enabled_process_count>3</enabled_process_count>
+        <disabling_process_count>0</disabling_process_count>
+        <disabled_process_count>0</disabled_process_count>
+        <capacity_used>3</capacity_used>
+        <get_wait_list_size>0</get_wait_list_size>
+        <disable_wait_list_size>0</disable_wait_list_size>
+        <processes_being_spawned>0</processes_being_spawned>
+        <life_status>ALIVE</life_status>
+        <user>acme</user>
+        <uid>1420</uid>
+        <group>acme</group>
+        <gid>1420</gid>
+        <options>
+          <app_root>/home/acme/application</app_root>
+          <app_group_name>/home/acme/application &#40;staging&#41;</app_group_name>
+          <app_type>ruby</app_type>
+          <start_command>/usr/local/bin/ruby /usr/share/passenger/helper-scripts/rack-loader.rb</start_command>
+          <startup_file>/home/acme/application/config.ru</startup_file>
+          <process_title>Passenger RubyApp</process_title>
+          <log_level>3</log_level>
+          <start_timeout>300000</start_timeout>
+          <environment>staging</environment>
+          <base_uri>/</base_uri>
+          <spawn_method>direct</spawn_method>
+          <bind_address>127.0.0.1</bind_address>
+          <default_user>nobody</default_user>
+          <default_group>nogroup</default_group>
+          <restart_dir>tmp</restart_dir>
+          <integration_mode>nginx</integration_mode>
+          <ruby>/usr/local/bin/ruby</ruby>
+          <python>python</python>
+          <nodejs>node</nodejs>
+          <debugger>false</debugger>
+          <api_key>REDACTED</api_key>
+          <min_processes>3</min_processes>
+          <max_processes>0</max_processes>
+          <max_preloader_idle_time>300</max_preloader_idle_time>
+          <max_out_of_band_work_instances>1</max_out_of_band_work_instances>
+          <sticky_sessions_cookie_attributes>SameSite&#61;Lax&#59; Secure&#59;</sticky_sessions_cookie_attributes>
+        </options>
+        <processes>
+          <process>
+            <pid>12529</pid>
+            <sticky_session_id>1186866690</sticky_session_id>
+            <gupid>xxxxxxx-xxxxxxxxxxx</gupid>
+            <concurrency>1</concurrency>
+            <sessions>0</sessions>
+            <busyness>0</busyness>
+            <processed>1854</processed>
+            <spawner_creation_time>1773697173216911</spawner_creation_time>
+            <spawn_start_time>1773712371195739</spawn_start_time>
+            <spawn_end_time>1773712398264747</spawn_end_time>
+            <last_used>1773719688144755</last_used>
+            <last_used_desc>0s ago</last_used_desc>
+            <uptime>2h 1m 30s</uptime>
+            <life_status>ALIVE</life_status>
+            <enabled>ENABLED</enabled>
+            <has_metrics>true</has_metrics>
+            <cpu>0</cpu>
+            <rss>509528</rss>
+            <pss>489797</pss>
+            <private_dirty>484884</private_dirty>
+            <swap>0</swap>
+            <real_memory>484884</real_memory>
+            <vmsize>1078812</vmsize>
+            <process_group_id>61</process_group_id>
+            <command>Passenger RubyApp: /home/acme/application &#40;staging&#41;</command>
+          </process>
+          <process>
+            <pid>14552</pid>
+            <sticky_session_id>1644062048</sticky_session_id>
+            <gupid>xxxxxxx-xxxxxxxxxxx</gupid>
+            <concurrency>1</concurrency>
+            <sessions>0</sessions>
+            <busyness>0</busyness>
+            <processed>0</processed>
+            <spawner_creation_time>1773697173216911</spawner_creation_time>
+            <spawn_start_time>1773714871129446</spawn_start_time>
+            <spawn_end_time>1773714898220994</spawn_end_time>
+            <last_used>1773714898220994</last_used>
+            <last_used_desc>1h 19m 50s ago</last_used_desc>
+            <uptime>1h 19m 50s</uptime>
+            <life_status>ALIVE</life_status>
+            <enabled>ENABLED</enabled>
+            <has_metrics>true</has_metrics>
+            <cpu>0</cpu>
+            <rss>463720</rss>
+            <pss>443828</pss>
+            <private_dirty>439052</private_dirty>
+            <swap>0</swap>
+            <real_memory>439052</real_memory>
+            <vmsize>943804</vmsize>
+            <process_group_id>61</process_group_id>
+            <command>Passenger RubyApp: /home/acme/application &#40;staging&#41;</command>
+          </process>
+          <process>
+            <pid>16579</pid>
+            <sticky_session_id>856557492</sticky_session_id>
+            <gupid>xxxxxxx-xxxxxxxxxxx</gupid>
+            <concurrency>1</concurrency>
+            <sessions>0</sessions>
+            <busyness>0</busyness>
+            <processed>0</processed>
+            <spawner_creation_time>1773697173216911</spawner_creation_time>
+            <spawn_start_time>1773717370174510</spawn_start_time>
+            <spawn_end_time>1773717397218231</spawn_end_time>
+            <last_used>1773717397218231</last_used>
+            <last_used_desc>38m 11s ago</last_used_desc>
+            <uptime>38m 11s</uptime>
+            <life_status>ALIVE</life_status>
+            <enabled>ENABLED</enabled>
+            <has_metrics>true</has_metrics>
+            <cpu>1</cpu>
+            <rss>453888</rss>
+            <pss>434240</pss>
+            <private_dirty>429344</private_dirty>
+            <swap>0</swap>
+            <real_memory>429344</real_memory>
+            <vmsize>934784</vmsize>
+            <process_group_id>61</process_group_id>
+            <command>Passenger RubyApp: /home/acme/application &#40;staging&#41;</command>
+          </process>
+        </processes>
+      </group>
+    </supergroup>
+  </supergroups>
+</info>
