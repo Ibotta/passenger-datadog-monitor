@@ -1,373 +1,84 @@
+// Package main is the entry point for passenger-datadog-monitor.
 package main
 
 import (
-	"bytes"
-	"encoding/xml"
 	"flag"
 	"fmt"
-	"io"
 	"log"
-	"os/exec"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/theckman/godspeed"
-	"golang.org/x/net/html/charset"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
 	// DefaultHost is 127.0.0.1 (localhost)
-	DefaultHost = godspeed.DefaultHost
+	DefaultHost = "127.0.0.1"
 
 	// DefaultPort is 8125
-	DefaultPort = godspeed.DefaultPort
-
-	// DefaultAutoTruncate If your metric is longer than MaxBytes autoTruncate can
-	// be used to truncate the message instead of erroring
-	DefaultAutoTruncate = false
+	DefaultPort = 8125
 )
 
-var printOutput bool
-
-type passengerStatus struct {
-	XMLName      xml.Name  `xml:"info"`
-	ProcessCount int       `xml:"process_count"`
-	PoolMax      int       `xml:"max"`
-	PoolCurrent  int       `xml:"capacity_used"`
-	QueuedCount  []int     `xml:"supergroups>supergroup>group>get_wait_list_size"`
-	Processes    []process `xml:"supergroups>supergroup>group>processes>process"`
-}
-
-type process struct {
-	CurrentSessions int   `xml:"sessions"`
-	Processed       int   `xml:"processed"`
-	SpawnTime       int64 `xml:"spawn_end_time"`
-	CPU             int   `xml:"cpu"`
-	Memory          int   `xml:"real_memory"`
-	PID             int   `xml:"pid"`
-	LastUsed        int64 `xml:"last_used"`
-}
-
-//Stats is used to store stats
-type Stats struct {
-	min int
-	len int
-	avg int
-	max int
-	sum int
-}
-
-func summarizeStats(statsArray *[]int) Stats {
-	var processedStats Stats
-	sum, count := 0, len(*statsArray)
-	sort.Sort(sort.IntSlice(*statsArray))
-
-	for _, stat := range *statsArray {
-		sum += stat
+// parseTags splits a tag string on commas and/or spaces, supporting both
+// comma-separated (source:foo,env:bar) and space-separated (source:foo env:bar)
+// formats, including mixed (source:foo, env:bar).
+func parseTags(s string) []string {
+	if s == "" {
+		return nil
 	}
-	sortedStats := *statsArray
-	processedStats.min = sortedStats[0]
-	processedStats.len = count
-	processedStats.avg = sum / count
-	processedStats.max = sortedStats[len(sortedStats)-1]
-	processedStats.sum = sum
-
-	return processedStats
-}
-
-func retrievePassengerStats() (io.Reader, error) {
-	out, err := exec.Command("passenger-status", "--show=xml").Output()
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-
-	return bytes.NewReader(out), nil
-}
-
-func parsePassengerXML(xmlData *io.Reader) (passengerStatus, error) {
-	var ParsedPassengerXML passengerStatus
-	dec := xml.NewDecoder(*xmlData)
-	dec.CharsetReader = charset.NewReaderLabel
-	err := dec.Decode(&ParsedPassengerXML)
-	if err != nil {
-		return passengerStatus{}, err
-	}
-	return ParsedPassengerXML, nil
-}
-
-func floatMyInt(value int) float64 {
-	return float64(value)
-}
-
-func getProcessThreadCount(pid int) (int, error) {
-	//ps -o nlwp --no-heading to get number of lightweight processes for given pid
-	out, err := exec.Command("ps", "--no-header", "-o", "nlwp", strconv.Itoa(pid)).Output()
-	if err != nil {
-		return 0, fmt.Errorf("encountered error issuing command to retrieve"+
-			" thread count from pid %d, error: %s", pid, err)
-	}
-	countString := strings.TrimSpace(string(out))
-	count, err := strconv.Atoi(countString)
-	if err != nil {
-		return 0, fmt.Errorf("encountered error parsing thread count from command return value, err: %s", err)
-	}
-	return count, nil
-}
-
-func processed(passengerDetails *passengerStatus) Stats {
-	var processed []int
-	processes := passengerDetails.Processes
-	for _, processStats := range processes {
-		processed = append(processed, processStats.Processed)
-	}
-	return summarizeStats(&processed)
-}
-
-func memory(passengerDetails *passengerStatus) Stats {
-	var memory []int
-	processes := passengerDetails.Processes
-	for _, processStats := range processes {
-		memory = append(memory, processStats.Memory)
-	}
-	return summarizeStats(&memory)
-}
-
-// Timestamps from Passenger Status are returned in microseconds (1/1,000,000 second) units
-// Golang unix time function only accepts seconds or nano (1/1,000,000,000) seconds
-// multiplying by 1000 to get nano from micro
-func processUptime(passengerDetails *passengerStatus) Stats {
-	var upTimes []int
-	processes := passengerDetails.Processes
-	for _, processStats := range processes {
-		SpawnedNano := time.Unix(0, int64(processStats.SpawnTime*1000))
-		uptime := time.Since(SpawnedNano)
-		upTimes = append(upTimes, int(uptime.Minutes()))
-	}
-	return summarizeStats(&upTimes)
-}
-
-func processUse(passengerDetails *passengerStatus) int {
-	var totalUsed int
-	processes := passengerDetails.Processes
-	periodStart := time.Now().Add(-(10 * time.Second))
-	for _, processStats := range processes {
-		lastUsedNano := time.Unix(0, int64(processStats.LastUsed*1000))
-		if lastUsedNano.After(periodStart) {
-			totalUsed++
-		}
-	}
-	return totalUsed
-}
-
-func chartPendingRequest(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
-	var totalQueued int
-	for _, queued := range passengerDetails.QueuedCount {
-		totalQueued += queued
-	}
-	if printOutput {
-		fmt.Printf("\n|=====Queue Depth====|\n Queue Depth %d", totalQueued)
-	}
-	_ = DogStatsD.Gauge("passenger.queue.depth", floatMyInt(totalQueued), nil)
-}
-
-func chartPoolUse(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
-	if printOutput {
-		fmt.Printf("\n|=====Pool Usage====|\n Used Pool %d\n Max Pool %d", passengerDetails.ProcessCount, passengerDetails.PoolMax)
-	}
-	_ = DogStatsD.Gauge("passenger.pool.used", floatMyInt(passengerDetails.ProcessCount), nil)
-	_ = DogStatsD.Gauge("passenger.pool.max", floatMyInt(passengerDetails.PoolMax), nil)
-}
-
-func chartProcessed(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
-	stats := processed(passengerDetails)
-	if printOutput {
-		fmt.Printf("\n|=====Processed====|\n Total processed %d\n Average processed %d\n"+
-			" Minimum processed %d\n Maximum processed %d", stats.sum, stats.avg, stats.min, stats.max)
-	}
-	_ = DogStatsD.Gauge("passenger.processed.total", floatMyInt(stats.sum), nil)
-	_ = DogStatsD.Gauge("passenger.processed.avg", floatMyInt(stats.avg), nil)
-	_ = DogStatsD.Gauge("passenger.processed.min", floatMyInt(stats.min), nil)
-	_ = DogStatsD.Gauge("passenger.processed.max", floatMyInt(stats.max), nil)
-}
-
-func chartMemory(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
-	stats := memory(passengerDetails)
-	if printOutput {
-		fmt.Printf("\n|=====Memory====|\n Total memory %d\n Average memory %d\n"+
-			" Minimum memory %d\n Maximum memory %d", stats.sum/1024, stats.avg/1024, stats.min/1024, stats.max/1024)
-	}
-	_ = DogStatsD.Gauge("passenger.memory.total", floatMyInt(stats.sum/1024), nil)
-	_ = DogStatsD.Gauge("passenger.memory.avg", floatMyInt(stats.avg/1024), nil)
-	_ = DogStatsD.Gauge("passenger.memory.min", floatMyInt(stats.min/1024), nil)
-	_ = DogStatsD.Gauge("passenger.memory.max", floatMyInt(stats.max/1024), nil)
-}
-
-func chartProcessUptime(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
-	stats := processUptime(passengerDetails)
-	if printOutput {
-		fmt.Printf("\n|=====Process uptime====|\n Average uptime %d min\n"+
-			" Minimum uptime %d min\n Maximum uptime %d min\n", stats.avg, stats.min, stats.max)
-	}
-	_ = DogStatsD.Gauge("passenger.uptime.avg", floatMyInt(stats.avg), nil)
-	_ = DogStatsD.Gauge("passenger.uptime.min", floatMyInt(stats.min), nil)
-	_ = DogStatsD.Gauge("passenger.uptime.max", floatMyInt(stats.max), nil)
-}
-
-func chartProcessUse(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
-	totalUsed := processUse(passengerDetails)
-	if printOutput {
-		fmt.Printf("\n|=====Process Usage====|\nUsed Processes %d", totalUsed)
-	}
-	_ = DogStatsD.Gauge("passenger.processes.used", floatMyInt(totalUsed), nil)
-}
-
-//go through each process in the tree and get the per process thread count and per process last used time
-func processSystemThreadUsage(passengerDetails *passengerStatus) map[int]float64 {
-	var processThreads = make(map[int]float64)
-	p := passengerDetails.Processes
-	for _, processDetails := range p {
-		//take the PID and do a thread count lookup using PS
-		tc, err := getProcessThreadCount(processDetails.PID)
-		if err != nil {
-			_ = err
-			//log.Printf("encountered error getting thread count %s", err)
-		}
-		processThreads[processDetails.PID] = floatMyInt(tc)
-	}
-	return processThreads
-}
-
-func processPerThreadMemoryUsage(passengerDetails *passengerStatus) map[int]float64 {
-	var processMemory = make(map[int]float64)
-	p := passengerDetails.Processes
-	for _, processDetails := range p {
-		processMemory[processDetails.PID] = floatMyInt(processDetails.Memory) / 1024
-	}
-	return processMemory
-}
-
-// Timestamps from Passenger Status are returned in microseconds units
-// Golang unix time function only accepts seconds or nano seconds
-// multiplying by 1000 to get nano from micro
-func processPerThreadIdleTime(passengerDetails *passengerStatus) map[int]float64 {
-	var processIdleTimes = make(map[int]float64)
-	p := passengerDetails.Processes
-	for _, processDetails := range p {
-		LastUsedTime := time.Unix(0, int64(processDetails.LastUsed*1000))
-		lastUsedSeconds := time.Since(LastUsedTime).Seconds()
-		processIdleTimes[processDetails.PID] = lastUsedSeconds
-	}
-	return processIdleTimes
-}
-
-func processPerThreadRequests(passengerDetails *passengerStatus) map[int]float64 {
-	var processPerThreadProcessed = make(map[int]float64)
-	p := passengerDetails.Processes
-	for _, processedReq := range p {
-		processPerThreadProcessed[processedReq.PID] = floatMyInt(processedReq.Processed)
-	}
-	return processPerThreadProcessed
-}
-
-func chartDiscreteMetrics(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
-	threadCountPerProcess := processSystemThreadUsage(passengerDetails)
-	threadMemoryUsages := processPerThreadMemoryUsage(passengerDetails)
-	threadIdletimes := processPerThreadIdleTime(passengerDetails)
-	threadProcessedCounts := processPerThreadRequests(passengerDetails)
-
-	if printOutput {
-		fmt.Println("\n|====Process Thread Counts====|")
-	}
-	for pid, count := range threadCountPerProcess {
-		if printOutput {
-			fmt.Printf("PID: %d  Running: %0.2f threads\n", pid, count)
-		}
-		tag := fmt.Sprintf("pid:%d", pid)
-		_ = DogStatsD.Gauge("passenger.process.threads", count, []string{tag})
-	}
-
-	if printOutput {
-		fmt.Println("|====Process Memory Usage====|")
-	}
-	for pid, memUse := range threadMemoryUsages {
-		if printOutput {
-			fmt.Printf("PID: %d Memory_Used: %0.2f MB\n", pid, memUse)
-		}
-		tag := fmt.Sprintf("pid:%d", pid)
-		_ = DogStatsD.Gauge("passenger.process.memory", memUse, []string{tag})
-	}
-
-	if printOutput {
-		fmt.Println("|====Process Idle Times====|")
-	}
-	for pid, seconds := range threadIdletimes {
-		if printOutput {
-			fmt.Printf("PID: %d Idle: %d Seconds\n", pid, int(seconds))
-		}
-		tag := fmt.Sprintf("pid:%d", pid)
-		_ = DogStatsD.Gauge("passenger.process.last_used", seconds, []string{tag})
-	}
-
-	if printOutput {
-		fmt.Println("|====Process Requests Handled====|")
-	}
-	for pid, count := range threadProcessedCounts {
-		if printOutput {
-			fmt.Printf("PID: %d Processed: %d Requests\n", pid, int(count))
-		}
-		tag := fmt.Sprintf("pid:%d", pid)
-		_ = DogStatsD.Gauge("passenger.process.request_processed", count, []string{tag})
-	}
+	return strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == ' '
+	})
 }
 
 func main() {
-	//get host and port
 	hostName := flag.String("host", DefaultHost, "DogStatsD Host")
 	portNum := flag.Int("port", DefaultPort, "DogStatsD UDP Port")
-	flag.BoolVar(&printOutput, "print", false, "Print Outputs")
-
+	printOutput := flag.Bool("print", false, "Print Outputs")
+	tagsFlag := flag.String("tags", "", "Comma-separated tags to add to all metrics (e.g. source:my-service,service:my-service)")
 	flag.Parse()
 
-	//backwards compatibility
+	// backwards compatibility: positional "print" argument
 	if flag.NArg() > 0 && flag.Arg(0) == "print" {
-		printOutput = true
+		*printOutput = true
 	}
 
-	if printOutput {
+	baseTags := parseTags(*tagsFlag)
+
+	client, err := statsd.New(fmt.Sprintf("%s:%d", *hostName, *portNum))
+	if err != nil {
+		log.Fatal("Error establishing StatsD connection:", err)
+	}
+
+	if *printOutput {
 		log.Println("Starting loop, sending to", *hostName, *portNum)
 	}
+
+	tracker := newDeltaTracker()
 
 	for {
 		xmlData, err := retrievePassengerStats()
 		if err != nil {
+			client.Close() //nolint:errcheck,gosec
 			log.Fatal("Error getting passenger data:", err)
 		}
 
-		PassengerStatusData, err := parsePassengerXML(&xmlData)
+		passengerData, err := parsePassengerXML(&xmlData)
 		if err != nil {
+			client.Close() //nolint:errcheck,gosec
 			log.Fatal("Error parsing passenger data:", err)
 		}
 
-		if PassengerStatusData.ProcessCount == 0 {
+		if passengerData.ProcessCount == 0 {
 			log.Println("Passenger has not yet started any threads, will try again next loop")
 		} else {
-			DogStatsD, err := godspeed.New(*hostName, *portNum, DefaultAutoTruncate)
-			if err != nil {
-				log.Fatal("Error establishing StatsD connection", err)
-			}
-
-			chartProcessed(&PassengerStatusData, DogStatsD)
-			chartMemory(&PassengerStatusData, DogStatsD)
-			chartPendingRequest(&PassengerStatusData, DogStatsD)
-			chartPoolUse(&PassengerStatusData, DogStatsD)
-			chartProcessUptime(&PassengerStatusData, DogStatsD)
-			chartProcessUse(&PassengerStatusData, DogStatsD)
-			chartDiscreteMetrics(&PassengerStatusData, DogStatsD)
-
-			DogStatsD.Conn.Close()
+			chartProcessed(&passengerData, client, baseTags, *printOutput, tracker)
+			chartMemory(&passengerData, client, baseTags, *printOutput)
+			chartPendingRequest(&passengerData, client, baseTags, *printOutput)
+			chartPoolUse(&passengerData, client, baseTags, *printOutput)
+			chartProcessUptime(&passengerData, client, baseTags, *printOutput)
+			chartProcessUse(&passengerData, client, baseTags, *printOutput)
+			chartDiscreteMetrics(&passengerData, client, baseTags, *printOutput)
 		}
 
 		time.Sleep(10 * time.Second)

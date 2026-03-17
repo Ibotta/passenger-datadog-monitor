@@ -1,0 +1,34 @@
+version: 2
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+dockers:
+  - image_templates:
+      - ghcr.io/ibotta/passenger-datadog-monitor:{{ .Tag }}
+      - ghcr.io/ibotta/passenger-datadog-monitor:latest
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile.goreleaser
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+
+archives:
+  - formats:
+      - tar.gz
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

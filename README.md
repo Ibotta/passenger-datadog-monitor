@@ -1,82 +1,51 @@
 # passenger-datadog-monitor
 
-Send health metrics from Phusion Passenger to DataDog using the StatsD interface on the server agent.
+Polls `passenger-status --show=xml` every 10 seconds and emits Passenger health metrics to Datadog via StatsD.
 
-## Purpose
+Forked from [Sjeanpierre/passenger-datadog-monitor](https://github.com/Sjeanpierre/passenger-datadog-monitor).
 
-Graph and track Passenger threads and possibly detect misbehaving threads before they become a problem.
+## Metrics
 
-## Tracked Metrics
+**Aggregated** (`passenger.*`): request queue depth, pool usage, process uptime (min/avg/max gauges), total memory (gauge), memory distribution (histogram), total processed requests (count delta).
 
-### Aggregated
+**Per-process** (`passenger.process.*`, tagged by `pid`): memory (histogram), thread count (gauge), idle time (gauge), requests processed (count delta).
 
-- Processed requests: min,max,average,total
-- Memory usage: min,max,average,total
-- Thread uptime: min, max, average
-- Request queue depth
-- Threads in use _vs_ Max thread configured & Threads used between runs
+## Usage in Dockerfile
 
-### Discrete
+```dockerfile
+COPY --from=ghcr.io/ibotta/passenger-datadog-monitor:v<version> \
+  /usr/local/bin/passenger-datadog-monitor /usr/local/bin/passenger-datadog-monitor
+```
 
-- Process memory usage per Passenger Process PID
-- OS thread count per Passenger Process PID
-- Requests processed per Passenger Process PID
-- Process Idle time per Passenger Process PID
-
-## Installation
-
-### Downloading from Github
-
-The `passenger-datadog-monitor` binary can be downloaded from the [releases area](https://github.com/Sjeanpierre/passenger-datadog-monitor/releases) of this repository for Linux
-
-### Building the binary
-
-You will first need to build the `passenger-datadog-monitor` executable using [Go](https://golang.org). You can download the source and dependencies, and build the binary by running:
+The binary runs as a daemon and sends metrics to the local StatsD agent:
 
 ```sh
-go get -v github.com/Sjeanpierre/passenger-datadog-monitor
+passenger-datadog-monitor -host=$STATSD_HOST -port=$STATSD_PORT
 ```
 
-Once it completes, you should find your new `passenger-datadog-monitor` executable in your `$GOROOT/bin` directory.
+## Flags
 
-Note that if you are building in a different environment from where you plan to deploy, you should configure your [target operating system and architecture](https://golang.org/doc/install/source#environment).
+| Flag | Default | Description |
+|:-----|:--------|:------------|
+| `-host` | `127.0.0.1` | StatsD host |
+| `-port` | `8125` | StatsD UDP port |
+| `-print` | `false` | Print metrics to stdout for debugging |
+| `-tags` | (none) | Tags for all metrics — comma-separated, space-separated, or mixed (e.g. `source:api,service:my-service` or `source:api service:my-service`) |
 
-The [Makefile](Makefile) in this repository will cross compile for Linux.
+### supervisord example
 
-### Installing the binary
+Space-separated tags (`DD_TAGS`) can be passed directly using supervisord's `%(ENV_...)s` interpolation:
 
-After you've built the executable, you should install it on your server (e.g. in `/usr/bin/`).
-
-## Usage
-
-`passenger-datadog-monitor` runs as a daemon with a 10 second sampling interval. Monit, God, SupervisorD, or any other daemon management tool should be used to manage the process.
-
-Sample Monit config
-
-```plaintext
-check process passenger-datadog-monitor with pidfile /var/run/passenger-datadog-monitor.pid
-start program = "/etc/init.d/passenger-datadog-monitor start"
-stop  program = "/etc/init.d/passenger-datadog-monitor stop"
+```ini
+[program:passenger-datadog-monitor]
+command=/usr/local/bin/passenger-datadog-monitor -host=%(ENV_STATSD_ENDPOINT_IP)s -port=%(ENV_STATSD_ENDPOINT_PORT)s -tags="version:%(ENV_DD_VERSION)s service:%(ENV_DD_SERVICE)s env:%(ENV_DD_ENV)s %(ENV_DD_TAGS)s"
 ```
 
-You should run `passenger-datadog-monitor` as root, since access to passenger-status requires root.
-
-### Flags
-
-| flag | type | description | example |
-|:-----|:---|:------------|:---|
-| -host | string | StatsD collector IP - useful when running with a Kubernetes DaemonSet or other external collector | -host=100.124.102.21 |
-| -port | string | StatsD collector UDP Port - useful when running in Docker or other custom environments | -port=81333 |
-| -print | bool | Enable debug and stats printing | -print |
-
-Full example:
+## Development
 
 ```sh
-passenger-datadog-monitor -host=$STATSD_IP -port=$STATSD_PORT
+make build    # compile binary to bin/
+make test     # run tests with race detector
+make lint     # run golangci-lint
+make docker   # build Docker image locally
 ```
-
-### Testing
-
-[udp.rb](https://github.com/Sjeanpierre/passenger-datadog-monitor/blob/master/server/udp.rb) can be run locally when you want to see what is being received on the server side.
-
-Alternatively you can listen using netcat: `nc -kulvw 0 8125`
