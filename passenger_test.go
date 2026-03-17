@@ -78,4 +78,3 @@ func TestParsePassengerXML_Restarted(t *testing.T) {
 		t.Errorf("len(Processes): got %d, want 0", len(got.Processes))
 	}
 }
-
