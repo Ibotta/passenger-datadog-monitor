@@ -179,6 +179,7 @@ func TestTagsNil(t *testing.T) {
 	chartPendingRequest(&ps, mock, nil, false)
 	chartProcessUptime(&ps, mock, nil, false)
 	chartProcessUse(&ps, mock, nil, false)
+	chartDiscreteMetrics(&ps, mock, nil, false)
 }
 
 func TestChartProcessed(t *testing.T) {
@@ -191,6 +192,17 @@ func TestChartProcessed(t *testing.T) {
 
 	if n := mock1.countHistograms("passenger.processed"); n != 3 {
 		t.Errorf("expected 3 histogram calls for passenger.processed, got %d", n)
+	}
+	// No pid: tag on histogram calls.
+	for _, h := range mock1.histogramCalls {
+		if h.name != "passenger.processed" {
+			continue
+		}
+		for _, tag := range h.tags {
+			if len(tag) > 4 && tag[:4] == "pid:" {
+				t.Errorf("passenger.processed histogram must not have pid tag, got %v", h.tags)
+			}
+		}
 	}
 	if len(mock1.countCalls) != 0 {
 		t.Errorf("expected 0 count calls on first scrape, got %d", len(mock1.countCalls))
@@ -220,6 +232,18 @@ func TestChartMemory(t *testing.T) {
 		t.Errorf("expected 3 histogram calls for passenger.memory, got %d", n)
 	}
 
+	// No pid: tag on histogram calls.
+	for _, h := range mock.histogramCalls {
+		if h.name != "passenger.memory" {
+			continue
+		}
+		for _, tag := range h.tags {
+			if len(tag) > 4 && tag[:4] == "pid:" {
+				t.Errorf("passenger.memory histogram must not have pid tag, got %v", h.tags)
+			}
+		}
+	}
+
 	// avg/min/max gauges must not be sent.
 	for _, name := range []string{"passenger.memory.avg", "passenger.memory.min", "passenger.memory.max"} {
 		if _, ok := mock.findGauge(name); ok {
@@ -238,6 +262,24 @@ func TestChartPendingRequest(t *testing.T) {
 	}
 }
 
+func TestChartProcessUptime(t *testing.T) {
+	ps := loadTestXML(t, "sample_data/data.xml")
+	mock := &mockStatsd{}
+	chartProcessUptime(&ps, mock, nil, false)
+
+	// Expect one histogram call per process (3 processes in data.xml).
+	if n := mock.countHistograms("passenger.uptime"); n != 3 {
+		t.Errorf("expected 3 histogram calls for passenger.uptime, got %d", n)
+	}
+
+	// uptime.avg/min/max gauges must not be sent.
+	for _, name := range []string{"passenger.uptime.avg", "passenger.uptime.min", "passenger.uptime.max"} {
+		if _, ok := mock.findGauge(name); ok {
+			t.Errorf("%s gauge should not be sent", name)
+		}
+	}
+}
+
 func TestChartDiscreteMetrics(t *testing.T) {
 	ps := loadTestXML(t, "sample_data/data.xml")
 
@@ -248,53 +290,30 @@ func TestChartDiscreteMetrics(t *testing.T) {
 	}
 	defer func() { execCommand = oldCmd }()
 
-	tracker := newDeltaTracker()
 	mock := &mockStatsd{}
-	chartDiscreteMetrics(&ps, mock, nil, false, tracker)
+	chartDiscreteMetrics(&ps, mock, nil, false)
 
-	// Expect one thread-count gauge per process (3 processes in data.xml).
-	threadGauges := 0
-	for _, c := range mock.calls {
-		if c.name == "passenger.process.threads" {
-			threadGauges++
-			if c.value != 4 {
-				t.Errorf("passenger.process.threads: got %v, want 4", c.value)
-			}
-		}
+	// Expect one thread-count histogram per process (3 processes in data.xml).
+	if n := mock.countHistograms("passenger.process.threads"); n != 3 {
+		t.Errorf("expected 3 histogram calls for passenger.process.threads, got %d", n)
 	}
-	if threadGauges != 3 {
-		t.Errorf("expected 3 thread gauges, got %d", threadGauges)
-	}
-
-	// Expect memory histograms (not gauges) for each process.
-	if n := mock.countHistograms("passenger.process.memory"); n != 3 {
-		t.Errorf("expected 3 histogram calls for passenger.process.memory, got %d", n)
-	}
-	for _, c := range mock.calls {
-		if c.name == "passenger.process.memory" {
-			t.Error("passenger.process.memory should be a histogram, not a gauge")
+	for _, h := range mock.histogramCalls {
+		if h.name == "passenger.process.threads" && h.value != 4 {
+			t.Errorf("passenger.process.threads: got %v, want 4", h.value)
 		}
 	}
 
-	// On first scrape, no count calls for request_processed.
-	for _, c := range mock.countCalls {
-		if c.name == "passenger.process.request_processed" {
-			t.Error("expected no count calls for passenger.process.request_processed on first scrape")
-		}
+	// Expect one last_used histogram per process.
+	if n := mock.countHistograms("passenger.process.last_used"); n != 3 {
+		t.Errorf("expected 3 histogram calls for passenger.process.last_used, got %d", n)
 	}
 
-	// Second scrape: one count delta per process.
-	mock2 := &mockStatsd{}
-	chartDiscreteMetrics(&ps, mock2, nil, false, tracker)
-
-	requestCounts := 0
-	for _, c := range mock2.countCalls {
-		if c.name == "passenger.process.request_processed" {
-			requestCounts++
-		}
+	// passenger.process.memory and passenger.process.request_processed must not be emitted.
+	if n := mock.countHistograms("passenger.process.memory"); n != 0 {
+		t.Errorf("passenger.process.memory should not be emitted, got %d calls", n)
 	}
-	if requestCounts != 3 {
-		t.Errorf("expected 3 count calls for passenger.process.request_processed on second scrape, got %d", requestCounts)
+	if len(mock.countCalls) != 0 {
+		t.Errorf("expected no count calls, got %d", len(mock.countCalls))
 	}
 }
 
@@ -307,18 +326,17 @@ func TestChartDiscreteMetricsWithTags(t *testing.T) {
 	}
 	defer func() { execCommand = oldCmd }()
 
-	tracker := newDeltaTracker()
 	mock := &mockStatsd{}
-	chartDiscreteMetrics(&ps, mock, []string{"source:test", "service:my-service"}, false, tracker)
+	chartDiscreteMetrics(&ps, mock, []string{"source:test", "service:my-service"}, false)
 
-	for _, c := range mock.calls {
-		if c.name != "passenger.process.threads" {
+	for _, h := range mock.histogramCalls {
+		if h.name != "passenger.process.threads" {
 			continue
 		}
 		hasPid := false
 		hasSource := false
 		hasService := false
-		for _, tag := range c.tags {
+		for _, tag := range h.tags {
 			if len(tag) > 4 && tag[:4] == "pid:" {
 				hasPid = true
 			}
@@ -329,8 +347,11 @@ func TestChartDiscreteMetricsWithTags(t *testing.T) {
 				hasService = true
 			}
 		}
-		if !hasPid || !hasSource || !hasService {
-			t.Errorf("passenger.process.threads tags missing expected values: got %v", c.tags)
+		if hasPid {
+			t.Errorf("passenger.process.threads must not have pid tag, got %v", h.tags)
+		}
+		if !hasSource || !hasService {
+			t.Errorf("passenger.process.threads missing source/service tags: got %v", h.tags)
 		}
 	}
 }

@@ -51,14 +51,6 @@ func processSystemThreadUsage(passengerDetails *passengerStatus) map[int]float64
 	return processThreads
 }
 
-func processPerThreadMemoryUsage(passengerDetails *passengerStatus) map[int]float64 {
-	result := make(map[int]float64)
-	for _, p := range passengerDetails.Processes {
-		result[p.PID] = float64(p.Memory) / 1024
-	}
-	return result
-}
-
 // processPerThreadIdleTime calculates seconds since last use per process.
 // Passenger timestamps are in microseconds; multiply by 1000 to convert to nanoseconds.
 func processPerThreadIdleTime(passengerDetails *passengerStatus) map[int]float64 {
@@ -93,7 +85,7 @@ func chartProcessed(passengerDetails *passengerStatus, client statsd.ClientInter
 	var totalProcessed int64
 	for _, p := range passengerDetails.Processes {
 		totalProcessed += int64(p.Processed)
-		_ = client.Histogram("passenger.processed", float64(p.Processed), pidTags(tags, p.PID), 1)
+		_ = client.Histogram("passenger.processed", float64(p.Processed), tags, 1)
 	}
 	if printOutput {
 		fmt.Printf("\n|=====Processed====|\n Total processed %d", totalProcessed)
@@ -105,7 +97,7 @@ func chartMemory(passengerDetails *passengerStatus, client statsd.ClientInterfac
 	var totalMemoryKB int64
 	for _, p := range passengerDetails.Processes {
 		totalMemoryKB += int64(p.Memory)
-		_ = client.Histogram("passenger.memory", float64(p.Memory)/1024, pidTags(tags, p.PID), 1)
+		_ = client.Histogram("passenger.memory", float64(p.Memory)/1024, tags, 1)
 	}
 	totalMB := float64(totalMemoryKB / 1024)
 	if printOutput {
@@ -115,14 +107,17 @@ func chartMemory(passengerDetails *passengerStatus, client statsd.ClientInterfac
 }
 
 func chartProcessUptime(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
-	stats := processUptime(passengerDetails)
 	if printOutput {
-		fmt.Printf("\n|=====Process uptime====|\n Average uptime %d min\n"+
-			" Minimum uptime %d min\n Maximum uptime %d min\n", stats.avg, stats.min, stats.max)
+		fmt.Println("\n|=====Process uptime====|")
 	}
-	_ = client.Gauge("passenger.uptime.avg", float64(stats.avg), tags, 1)
-	_ = client.Gauge("passenger.uptime.min", float64(stats.min), tags, 1)
-	_ = client.Gauge("passenger.uptime.max", float64(stats.max), tags, 1)
+	for _, p := range passengerDetails.Processes {
+		spawnedNano := time.Unix(0, p.SpawnTime*1000)
+		uptimeMinutes := time.Since(spawnedNano).Minutes()
+		if printOutput {
+			fmt.Printf(" PID %d uptime %.0f min\n", p.PID, uptimeMinutes)
+		}
+		_ = client.Histogram("passenger.uptime", uptimeMinutes, tags, 1)
+	}
 }
 
 func chartProcessUse(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
@@ -133,15 +128,8 @@ func chartProcessUse(passengerDetails *passengerStatus, client statsd.ClientInte
 	_ = client.Gauge("passenger.processes.used", float64(totalUsed), tags, 1)
 }
 
-func pidTags(baseTags []string, pid int) []string {
-	t := make([]string, len(baseTags), len(baseTags)+1)
-	copy(t, baseTags)
-	return append(t, fmt.Sprintf("pid:%d", pid))
-}
-
-func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool, tracker *deltaTracker) {
+func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.ClientInterface, tags []string, printOutput bool) {
 	threadCounts := processSystemThreadUsage(passengerDetails)
-	memoryUsages := processPerThreadMemoryUsage(passengerDetails)
 	idleTimes := processPerThreadIdleTime(passengerDetails)
 
 	if printOutput {
@@ -151,17 +139,7 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 		if printOutput {
 			fmt.Printf("PID: %d  Running: %0.2f threads\n", pid, count)
 		}
-		_ = client.Gauge("passenger.process.threads", count, pidTags(tags, pid), 1)
-	}
-
-	if printOutput {
-		fmt.Println("|====Process Memory Usage====|")
-	}
-	for pid, memUse := range memoryUsages {
-		if printOutput {
-			fmt.Printf("PID: %d Memory_Used: %0.2f MB\n", pid, memUse)
-		}
-		_ = client.Histogram("passenger.process.memory", memUse, pidTags(tags, pid), 1)
+		_ = client.Histogram("passenger.process.threads", count, tags, 1)
 	}
 
 	if printOutput {
@@ -171,16 +149,6 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, client statsd.Clien
 		if printOutput {
 			fmt.Printf("PID: %d Idle: %d Seconds\n", pid, int(seconds))
 		}
-		_ = client.Gauge("passenger.process.last_used", seconds, pidTags(tags, pid), 1)
-	}
-
-	if printOutput {
-		fmt.Println("|====Process Requests Handled====|")
-	}
-	for _, p := range passengerDetails.Processes {
-		if printOutput {
-			fmt.Printf("PID: %d Processed: %d Requests\n", p.PID, p.Processed)
-		}
-		tracker.CountDelta(client, "passenger.process.request_processed", int64(p.Processed), pidTags(tags, p.PID), 1)
+		_ = client.Histogram("passenger.process.last_used", seconds, tags, 1)
 	}
 }

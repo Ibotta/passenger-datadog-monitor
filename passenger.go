@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -34,31 +33,6 @@ type process struct {
 	Memory          int   `xml:"real_memory"`
 	PID             int   `xml:"pid"`
 	LastUsed        int64 `xml:"last_used"`
-}
-
-// Stats stores aggregate statistics for a set of process values.
-type Stats struct {
-	min int
-	len int
-	avg int
-	max int
-	sum int
-}
-
-func summarizeStats(statsArray *[]int) Stats {
-	var s Stats
-	sum, count := 0, len(*statsArray)
-	sort.Ints(*statsArray)
-	for _, v := range *statsArray {
-		sum += v
-	}
-	sorted := *statsArray
-	s.min = sorted[0]
-	s.len = count
-	s.avg = sum / count
-	s.max = sorted[len(sorted)-1]
-	s.sum = sum
-	return s
 }
 
 func retrievePassengerStats() (io.Reader, error) {
@@ -89,17 +63,6 @@ func getProcessThreadCount(pid int) (int, error) {
 		return 0, fmt.Errorf("error parsing thread count: %w", err)
 	}
 	return count, nil
-}
-
-// processUptime calculates uptime stats for all processes.
-// Passenger timestamps are in microseconds; multiply by 1000 to convert to nanoseconds.
-func processUptime(passengerDetails *passengerStatus) Stats {
-	var upTimes []int
-	for _, p := range passengerDetails.Processes {
-		spawnedNano := time.Unix(0, p.SpawnTime*1000)
-		upTimes = append(upTimes, int(time.Since(spawnedNano).Minutes()))
-	}
-	return summarizeStats(&upTimes)
 }
 
 func processUse(passengerDetails *passengerStatus) int {

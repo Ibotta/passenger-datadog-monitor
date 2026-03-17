@@ -70,23 +70,3 @@ func TestParsePassengerXML_Restarted(t *testing.T) {
 	}
 }
 
-func TestSummarizeStats(t *testing.T) {
-	vals := []int{10, 3, 7, 1, 9}
-	got := summarizeStats(&vals)
-
-	if got.min != 1 {
-		t.Errorf("min: got %d, want 1", got.min)
-	}
-	if got.max != 10 {
-		t.Errorf("max: got %d, want 10", got.max)
-	}
-	if got.sum != 30 {
-		t.Errorf("sum: got %d, want 30", got.sum)
-	}
-	if got.avg != 6 {
-		t.Errorf("avg: got %d, want 6", got.avg)
-	}
-	if got.len != 5 {
-		t.Errorf("len: got %d, want 5", got.len)
-	}
-}

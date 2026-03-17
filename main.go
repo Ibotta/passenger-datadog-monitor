@@ -78,7 +78,7 @@ func main() {
 			chartPoolUse(&passengerData, client, baseTags, *printOutput)
 			chartProcessUptime(&passengerData, client, baseTags, *printOutput)
 			chartProcessUse(&passengerData, client, baseTags, *printOutput)
-			chartDiscreteMetrics(&passengerData, client, baseTags, *printOutput, tracker)
+			chartDiscreteMetrics(&passengerData, client, baseTags, *printOutput)
 		}
 
 		time.Sleep(10 * time.Second)
